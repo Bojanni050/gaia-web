@@ -43,8 +43,9 @@ Building requires network access to `github.com` (the artifact fetch).
 rather than risk Docker's layer cache serving a stale pull of Cloud's
 moving `foundation-latest` release.
 
-**Known gap:** a `docs/`/`soul.md` change in `Gaia-Cloud` publishes a new
-artifact immediately, but nothing currently triggers a `Gaia-Web` rebuild
-in response — this repo only picks it up on its own next deploy, for
-whatever reason that happens. Wiring a cross-repo trigger (e.g. Cloud's
-publish job dispatching a workflow run here) is deliberately not done yet.
+A `docs/`/`soul.md` change in `Gaia-Cloud` triggers a rebuild here
+automatically: `Gaia-Cloud/.github/workflows/publish-foundation.yml`
+runs `gh workflow run deploy.yml --repo Bojanni050/Gaia-Web` after
+publishing, authenticated with a `CROSS_REPO_TOKEN` repo secret over
+there (the default `github.token` can't trigger workflows in another
+repo).
