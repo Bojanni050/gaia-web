@@ -46,6 +46,28 @@ server {
         proxy_read_timeout 60s;
     }
 
+    # gaia-api is Tailscale-bound like Hindsight/cognition — reachable from
+    # any container on this host — but unlike those two it requires Bearer
+    # auth. The browser never holds the token: this proxy injects it,
+    # exactly like gaia-hermes-proxy injects HERMES_AUTH_TOKEN toward
+    # hermes-agent (docs/web-migration-plan.md §5's chosen auth model).
+    # ${GAIA_API_TOKEN_WEB} is substituted from the container's environment
+    # at startup (this file is a template — see Dockerfile/deploy.yml);
+    # nginx's own $-prefixed runtime variables below (no curly braces) are
+    # untouched by that substitution.
+    location /api/gaia/ {
+        proxy_pass http://100.64.144.93:8891/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Authorization "Bearer ${GAIA_API_TOKEN_WEB}";
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_read_timeout 3600s;
+    }
+
     location / {
         try_files $uri $uri/ /index.html;
     }

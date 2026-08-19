@@ -1,7 +1,7 @@
 # Build context is this repo's root. Builds Gaia's web frontend (foundation
 # artifact + React app) and serves it as static files. No backend service
-# runs in this image — Hermes, Hindsight, and the cognition service are all
-# reached same-origin, proxied by the nginx.conf baked in below.
+# runs in this image — Hermes, Hindsight, cognition, and gaia-api are all
+# reached same-origin, proxied by the nginx template baked in below.
 
 FROM node:22-slim AS build
 WORKDIR /app
@@ -43,5 +43,11 @@ RUN npm run build:web
 
 FROM nginx:1.27-alpine
 COPY --from=build /app/build /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# A template, not a static file: the official nginx image's entrypoint
+# envsubst's ${VAR}-style placeholders here from the container's actual
+# environment at startup (GAIA_API_TOKEN_WEB) — nginx's own bare $-prefixed
+# runtime variables (no curly braces) are left untouched. See
+# nginx.conf.template's /api/gaia/ block and deploy.yml for where the
+# token comes from at deploy time.
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 EXPOSE 80
