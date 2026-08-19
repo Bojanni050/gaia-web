@@ -33,10 +33,13 @@ function devWarn(reason, detail) {
  *
  * Does not retrieve memory itself — architecture.md §7 of this
  * implementation's brief: memory retrieval is an explicit capability
- * decision made before reasoning (see state/memoryPolicy.js's recall gate),
- * not something reasonIQ triggers on its own. Pass whatever was already
- * retrieved via context.recalledMemory; if nothing was retrieved, reasonIQ
- * reasons from the evidence it has rather than assuming nothing exists.
+ * decision made before reasoning (the recall gate now lives server-side,
+ * services/gaia-api/src/memoryPolicy.js, since docs/web-migration-plan.md's
+ * Phase C — this client-side dev-log path never sees recalled memory
+ * either way), not something reasonIQ triggers on its own. Pass whatever
+ * was already retrieved via context.recalledMemory; if nothing was
+ * retrieved, reasonIQ reasons from the evidence it has rather than
+ * assuming nothing exists.
  *
  * @param {import('../intentIQ/schema').IntentDecisionSchema} intentDecision
  * @param {{ role: string, content: string }[]} messages conversation so far, most recent last

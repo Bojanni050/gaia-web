@@ -146,26 +146,27 @@ let webpackConfig = {
 };
 
 webpackConfig.devServer = (devServerConfig) => {
-  // Hindsight and services/cognition send no CORS headers at all (an
-  // OPTIONS preflight against Hindsight 405s), so the browser blocks any
-  // direct cross-origin call to them. HindsightProvider defaults to
-  // relative paths (/api/hindsight, /api/cognition) for exactly this
-  // reason; this proxies those paths to the real Tailscale addresses in
-  // dev, same as nginx.conf does in production. Reachability still
-  // requires this machine to be on the tailnet.
+  // gaia-api requires a Bearer token and sends no CORS headers, so a
+  // browser calling it directly (even with the token attached client-side)
+  // is blocked at the CORS preflight before the request is ever sent —
+  // confirmed the hard way (docs/web-migration-plan.md's Phase C
+  // verification). This proxies /api/gaia same-origin in dev and injects
+  // the token server-side, exactly mirroring what nginx.conf.template does
+  // in production (Phase A) — the browser never holds the token, in dev or
+  // prod. Set GAIA_API_TOKEN_WEB (or GAIA_API_PROXY_TARGET to point
+  // elsewhere) in the environment to use this.
   devServerConfig.proxy = [
     ...(devServerConfig.proxy || []),
     {
-      context: ['/api/hindsight'],
-      target: process.env.HINDSIGHT_PROXY_TARGET || 'http://100.64.144.93:8888',
+      context: ['/api/gaia'],
+      target: process.env.GAIA_API_PROXY_TARGET || 'http://100.64.144.93:8891',
       changeOrigin: true,
-      pathRewrite: { '^/api/hindsight': '' },
-    },
-    {
-      context: ['/api/cognition'],
-      target: process.env.COGNITION_PROXY_TARGET || 'http://100.64.144.93:8890',
-      changeOrigin: true,
-      pathRewrite: { '^/api/cognition': '' },
+      pathRewrite: { '^/api/gaia': '' },
+      onProxyReq: (proxyReq) => {
+        if (process.env.GAIA_API_TOKEN_WEB) {
+          proxyReq.setHeader('Authorization', `Bearer ${process.env.GAIA_API_TOKEN_WEB}`);
+        }
+      },
     },
   ];
 

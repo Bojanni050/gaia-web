@@ -1,9 +1,9 @@
 /**
  * ReasoningProvider — the seam Gaia depends on for thought.
  *
- * Concrete providers (HermesProvider today, others tomorrow) implement this
- * contract. The desktop never imports a provider class directly; it asks the
- * reasoning module for the configured provider. This is how Gaia stays
+ * Concrete providers (GaiaCloudProvider today, others tomorrow) implement
+ * this contract. Callers never import a provider class directly; they ask
+ * the reasoning module for the configured provider. This is how Gaia stays
  * model-agnostic and provider-invariant.
  */
 export class ReasoningProvider {

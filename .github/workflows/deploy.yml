@@ -47,10 +47,7 @@ jobs:
             # check below.
             docker tag gaia-web:latest gaia-web:previous 2>/dev/null || true
 
-            # CACHEBUST forces the foundation-artifact fetch layer to
-            # always re-run — otherwise Docker's build cache can serve a
-            # stale fetch of Gaia-Cloud's moving foundation-latest release.
-            docker build --build-arg CACHEBUST=$(date +%s) -t gaia-web:latest .
+            docker build -t gaia-web:latest .
 
             docker stop gaia-web 2>/dev/null || true
             docker rm gaia-web 2>/dev/null || true

@@ -2,49 +2,58 @@ import { ReasoningProvider } from './ReasoningProvider';
 import { ReasoningUnavailableError, ReasoningAbortedError } from './errors';
 
 /**
- * HermesProvider — talks to a local OpenAI-compatible Hermes API.
+ * GaiaCloudProvider — talks to Gaia Cloud's uniform API
+ * (`services/gaia-api`), never to Hermes directly.
  *
- * Default URL targets an Ollama-shaped local server (the most common
- * OpenAI-compatible stack). Override with REACT_APP_HERMES_URL.
+ * Replaces the earlier HermesProvider, which called Hermes directly
+ * (docs/web-migration-plan.md's Phase C cutover) — identity, memory
+ * recall/reflection, and context-aware document selection all now happen
+ * server-side, inside gaia-api's performStreamingTurn (Phase B). This
+ * provider sends the raw conversation only; it never assembles a system
+ * prompt or calls Hindsight itself.
  *
- * The provider speaks plain reasoning: messages in, text deltas out.
- * Presence, persona, and error phrasing are applied by the desktop.
+ * Default URL is relative (/api/gaia), proxied same-origin — nginx in
+ * production (nginx.conf.template, Phase A), craco's dev-server proxy
+ * locally (craco.config.js). Either way, this provider never holds or
+ * sends gaia-api's auth token — the proxy injects it server-side.
+ * Deliberately no client-side token config: gaia-api sends no CORS
+ * headers, so a browser attaching a custom Authorization header directly
+ * is blocked at the CORS preflight regardless (confirmed the hard way
+ * during this cutover's verification) — a same-origin proxy isn't an
+ * optimization here, it's the only way this works from a real browser.
+ * Override REACT_APP_GAIA_API_URL only for non-browser use (Node/tests).
  */
-export class HermesProvider extends ReasoningProvider {
+export class GaiaCloudProvider extends ReasoningProvider {
   constructor(config = {}) {
     super(config);
-    this.baseUrl = (config.baseUrl || process.env.REACT_APP_REASON_ENGINE_URL || 'http://localhost:11434/v1')
+    this.baseUrl = (config.baseUrl || process.env.REACT_APP_GAIA_API_URL || '/api/gaia')
       .replace(/\/+$/, '');
-    this.model = config.model || process.env.REACT_APP_REASON_ENGINE_MODEL || 'llama3';
-    this.apiKey = config.apiKey || process.env.REACT_APP_REASON_ENGINE_API_KEY || '';
   }
 
   _headers() {
-    const h = { 'Content-Type': 'application/json' };
-    if (this.apiKey) h.Authorization = `Bearer ${this.apiKey}`;
-    return h;
+    return { 'Content-Type': 'application/json' };
   }
 
   async health() {
     try {
-      const res = await fetch(`${this.baseUrl}/models`, {
+      const res = await fetch(`${this.baseUrl}/health`, {
         headers: this._headers(),
         signal: AbortSignal.timeout(4000),
       });
-      if (!res.ok) return { ok: false, detail: `models endpoint ${res.status}` };
+      if (!res.ok) return { ok: false, detail: `health endpoint ${res.status}` };
       return { ok: true };
     } catch (_) {
-      return { ok: false, detail: 'cannot reach reason engine' };
+      return { ok: false, detail: 'cannot reach Gaia Cloud' };
     }
   }
 
   async stream(messages, { signal, onDelta } = {}) {
     let res;
     try {
-      res = await fetch(`${this.baseUrl}/chat/completions`, {
+      res = await fetch(`${this.baseUrl}/conversation/turn`, {
         method: 'POST',
         headers: this._headers(),
-        body: JSON.stringify({ model: this.model, messages, stream: true }),
+        body: JSON.stringify({ messages, stream: true }),
         signal,
       });
     } catch (_) {
@@ -52,7 +61,7 @@ export class HermesProvider extends ReasoningProvider {
     }
 
     if (!res.ok || !res.body) {
-      throw new ReasoningUnavailableError(`chat/completions ${res.status}`);
+      throw new ReasoningUnavailableError(`conversation/turn ${res.status}`);
     }
 
     return this._readSse(res.body, signal, onDelta);
@@ -61,10 +70,10 @@ export class HermesProvider extends ReasoningProvider {
   async chat(messages, { signal } = {}) {
     let res;
     try {
-      res = await fetch(`${this.baseUrl}/chat/completions`, {
+      res = await fetch(`${this.baseUrl}/conversation/turn`, {
         method: 'POST',
         headers: this._headers(),
-        body: JSON.stringify({ model: this.model, messages, stream: false }),
+        body: JSON.stringify({ messages }),
         signal,
       });
     } catch (_) {
@@ -72,17 +81,20 @@ export class HermesProvider extends ReasoningProvider {
     }
 
     if (!res.ok) {
-      throw new ReasoningUnavailableError(`chat/completions ${res.status}`);
+      throw new ReasoningUnavailableError(`conversation/turn ${res.status}`);
     }
 
     let data;
     try { data = await res.json(); } catch (_) {
       throw new ReasoningUnavailableError('invalid response body');
     }
-    return data?.choices?.[0]?.message?.content ?? '';
+    return data?.reply ?? '';
   }
 
   // --- SSE ---------------------------------------------------------------
+  // Wire shape matches Hermes's own OpenAI-compatible frames — gaia-api
+  // relays them unchanged (services/gaia-api/src/hermesClient.js's
+  // stream(), services/gaia-api/src/turn.js's performStreamingTurn).
 
   async _readSse(body, signal, onDelta) {
     const reader = body.getReader();

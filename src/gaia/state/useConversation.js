@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getReasoningProvider } from '../integration/reasoning';
-import { FoundationEngine } from '../foundation';
 import { phraseReasoningError } from '../presence/errorPhrases';
-import { recallRelevantContext, renderMemoryContext, reflectOnTurn } from './memoryContext';
-import { deriveIntent } from './intentIQ';
 import { interpretIntent, reasonAboutTurn } from '../logos';
 
 const emptyStream = { active: false, messageId: null, content: '', reasoning: '', presence: 'quiet' };
@@ -32,11 +29,13 @@ function titleFrom(text) {
  *
  * Deliberately does not pass recalled memory into reasonAboutTurn here —
  * doing so would mean either a second Hindsight recall call (the real one
- * happens inside assembleTranscript, gated by memoryPolicy) or a larger
- * refactor of the turn lifecycle than this milestone calls for. reasonIQ
- * fully supports consuming recalled memory (see reasonIQ.test.js); wiring
- * that into this dev-log path is left for when reasonIQ starts driving
- * real behavior rather than being inspected in isolation.
+ * now happens server-side, inside gaia-api's performStreamingTurn, gated
+ * by its own memoryPolicy — docs/web-migration-plan.md Phase B/C) or a
+ * larger refactor of the turn lifecycle than this milestone calls for.
+ * reasonIQ fully supports consuming recalled memory (see
+ * reasonIQ.test.js); wiring that into this dev-log path is left for when
+ * reasonIQ starts driving real behavior rather than being inspected in
+ * isolation.
  */
 function logLogosForDev(messages) {
   if (process.env.NODE_ENV === 'production') return;
@@ -151,7 +150,6 @@ export function useConversation() {
         };
       });
       setStream(emptyStream);
-      reflectOnTurn({ conversationId: convId, userText, assistantText: fullText, assistantMessageId: assistantId });
       return fullText;
     } catch (e) {
       if (controller.signal.aborted) {
@@ -294,24 +292,15 @@ function latestUserText(messages) {
 }
 
 /**
- * Assembles the transcript sent to Hermes: identity system prompt, then a
- * best-effort recalled-memory system message (architecture §5.1: capability
- * retrieves relevant context before executing), then the conversation.
- * Recall is query'd on the latest user turn and never blocks longer than
- * recallRelevantContext's own timeout, nor fails the conversation if
- * Hindsight is unreachable.
+ * Assembles the transcript sent to Gaia Cloud: the raw conversation, no
+ * system messages. Identity (SOUL, context-aware document selection) and
+ * memory (recall before the call, reflection after) are gaia-api's job
+ * now (docs/web-migration-plan.md Phase B/C) — this client sends only
+ * what the user actually said.
  */
 async function assembleTranscript(messages) {
-  const context = deriveIntent(messages);
-  const userText = latestUserText(messages);
-  const reflections = await recallRelevantContext(userText);
-  const memoryBlock = renderMemoryContext(reflections);
-
-  const systemMessages = [{ role: 'system', content: FoundationEngine.getPrompt(context) }];
-  if (memoryBlock) systemMessages.push({ role: 'system', content: memoryBlock });
-
   return {
-    transcript: buildTranscript([...systemMessages, ...messages]),
-    userText,
+    transcript: buildTranscript(messages),
+    userText: latestUserText(messages),
   };
 }

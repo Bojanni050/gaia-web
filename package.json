@@ -71,9 +71,8 @@
     "start": "craco start",
     "build": "craco build",
     "test": "craco test",
-    "fetch:foundation": "node scripts/fetch-foundation-artifact.js",
-    "dev:web": "npm run fetch:foundation && npm run start",
-    "build:web": "npm run fetch:foundation && npm run build"
+    "dev:web": "npm run start",
+    "build:web": "npm run build"
   },
   "browserslist": {
     "production": [

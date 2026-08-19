@@ -1,10 +1,11 @@
 /**
- * Reasoning integration — the only place Gaia Desktop reaches reasoning.
+ * Reasoning integration — the only place Gaia Web reaches reasoning.
  *
- * Returns a single, lazily-built provider. Today that is HermesProvider;
- * tomorrow it could be swapped without any caller knowing.
+ * Returns a single, lazily-built provider. Today that is
+ * GaiaCloudProvider (services/gaia-api) — tomorrow it could be swapped
+ * without any caller knowing.
  */
-import { HermesProvider } from './HermesProvider';
+import { GaiaCloudProvider } from './GaiaCloudProvider';
 import { ReasoningProvider } from './ReasoningProvider';
 import {
   ReasoningUnavailableError,
@@ -20,7 +21,7 @@ export function getReasoningProvider() {
 }
 
 export function createProvider() {
-  return new HermesProvider();
+  return new GaiaCloudProvider();
 }
 
 export function resetProvider() {
@@ -29,7 +30,7 @@ export function resetProvider() {
 
 export {
   ReasoningProvider,
-  HermesProvider,
+  GaiaCloudProvider,
   ReasoningUnavailableError,
   ReasoningAbortedError,
 };
