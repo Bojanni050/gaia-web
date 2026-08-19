@@ -71,10 +71,9 @@
     "start": "craco start",
     "build": "craco build",
     "test": "craco test",
-    "dev:foundation": "tsx foundation/index.ts --watch --soul=identity/soul.md --output=src/gaia/foundation/artifact.json",
-    "build:foundation": "tsx foundation/index.ts --soul=identity/soul.md --output=src/gaia/foundation/artifact.json",
-    "dev:web": "concurrently \"npm run dev:foundation\" \"npm run start\"",
-    "build:web": "npm run build:foundation && npm run build"
+    "fetch:foundation": "node scripts/fetch-foundation-artifact.js",
+    "dev:web": "npm run fetch:foundation && npm run start",
+    "build:web": "npm run fetch:foundation && npm run build"
   },
   "browserslist": {
     "production": [
@@ -89,9 +88,6 @@
     ]
   },
   "devDependencies": {
-    "@types/node": "^26.1.2",
-    "concurrently": "^10.0.4",
-    "tsx": "^4.23.9",
     "@babel/plugin-proposal-private-property-in-object": "7.21.11",
     "@craco/craco": "7.1.0",
     "@emergentbase/visual-edits": "https://assets.emergent.sh/npm/emergentbase-visual-edits-1.0.13.tgz",

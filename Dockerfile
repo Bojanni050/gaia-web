@@ -24,20 +24,21 @@ ENV REACT_APP_COGNITION_URL=$REACT_APP_COGNITION_URL
 COPY package.json yarn.lock ./
 RUN yarn install --frozen-lockfile
 
-# docs/ and identity/soul.md are vendored snapshots of Gaia-Cloud's
-# constitution (see README.md) — not the source of truth, but this build
-# has no filesystem access to the Gaia-Cloud repo, so this is what
-# foundation/ resolves against.
-COPY foundation ./foundation
 COPY packages ./packages
-COPY docs ./docs
-COPY identity ./identity
-
+COPY scripts ./scripts
 COPY public ./public
 COPY src ./src
 COPY craco.config.js jsconfig.json postcss.config.js tailwind.config.js components.json ./
 COPY plugins ./plugins
 
+# build:web fetches foundation-artifact.json from Gaia-Cloud's published
+# release (scripts/fetch-foundation-artifact.js) instead of vendoring
+# docs/ and identity/soul.md copies — requires network access at build
+# time. CACHEBUST forces this layer to always re-run rather than serving
+# a Docker-cached fetch from a previous build: the "foundation-latest"
+# release is a moving target Docker's cache key can't see change on its
+# own, since nothing else in this layer's inputs changed.
+ARG CACHEBUST=1
 RUN npm run build:web
 
 FROM nginx:1.27-alpine
