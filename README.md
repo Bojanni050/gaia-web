@@ -1,70 +1,40 @@
-# Getting Started with Create React App
+# Gaia Web
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A lifelong personal intelligence — the web client. Extracted from the
+`Gaia-Cloud` monorepo (Phase 1 of `docs/split-plan.md`, 2026-08-19).
 
-## Available Scripts
+Gaia Web talks to Hermes, Hindsight, and the cognition service directly,
+same-origin, proxied by `nginx.conf` — see `docs/architecture.md`. Logos
+(`intentIQ`/`reasonIQ`) still runs client-side here, an explicitly-flagged
+interim state (see `docs/evolution.md`, Milestone 9's "known interim
+placement" note) — moving it server-side into Gaia Cloud is later work.
 
-In the project directory, you can run:
+## Structure
 
-### `npm start`
+- `src/` — the React app (CRA/craco).
+- `foundation/` — build-time tool that reads `docs/` + `identity/soul.md`
+  and writes `src/gaia/foundation/artifact.json`, the system prompt
+  dictionary. Made path-independent in `Gaia-Cloud`'s Phase 0; this repo
+  points it at its own vendored copies via `--soul=identity/soul.md`.
+- `packages/gaia-contracts/` — Gaia's system contracts (SOUL, Hindsight,
+  Hermes, Chronicles, MCP), aliased in via `craco.config.js` — see that
+  package's own README for why it's an alias and not an installed
+  dependency yet.
+- `docs/` and `identity/soul.md` — **vendored snapshots**, not the source
+  of truth. Gaia's constitution and foundation documents are owned by
+  `Gaia-Cloud` (`docs/`, `services/gaia-api/identity/soul.md` there).
+  This copy is `identity/soul.md` as of `Gaia-Cloud@e200903`. Until Cloud
+  publishes a `foundation-artifact.json` clients pull from in CI
+  (`docs/split-plan.md`'s stated direction), re-sync these manually
+  whenever Cloud's `docs/` or `soul.md` changes — don't let them drift
+  silently.
+- `Dockerfile` / `nginx.conf` — builds the `gaia-web` image; nginx doubles
+  as the same-origin API gateway toward Hermes/Hindsight/cognition.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## Scripts
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
-
-### `npm test`
-
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
-
-### `npm run build`
-
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+```bash
+npm run build:foundation   # writes src/gaia/foundation/artifact.json
+npm run dev:web            # foundation --watch + craco start
+npm run build:web          # foundation build + craco build
+```

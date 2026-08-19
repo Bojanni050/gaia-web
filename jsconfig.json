@@ -3,8 +3,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@gaia/contracts": ["../packages/gaia-contracts/src/index.js"],
-      "@gaia/contracts/*": ["../packages/gaia-contracts/src/*"]
+      "@gaia/contracts": ["./packages/gaia-contracts/src/index.js"],
+      "@gaia/contracts/*": ["./packages/gaia-contracts/src/*"]
     }
   },
   "include": ["src"]
