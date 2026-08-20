@@ -7,10 +7,13 @@ const mockStream = jest.fn((transcript, { onDelta }) => {
   return Promise.resolve('Mocked response');
 });
 
+const mockListConversations = jest.fn(() => Promise.resolve([]));
+
 jest.mock('../../integration/reasoning', () => ({
   getReasoningProvider: () => ({
     health: mockHealth,
     stream: mockStream,
+    listConversations: mockListConversations,
   })
 }));
 
@@ -18,6 +21,7 @@ describe('useConversation hook', () => {
   beforeEach(() => {
     mockHealth.mockClear();
     mockStream.mockClear();
+    mockListConversations.mockClear();
 
     // Set default implementations in case they were changed
     mockHealth.mockImplementation(() => Promise.resolve({ ok: true }));
@@ -25,6 +29,7 @@ describe('useConversation hook', () => {
       if (onDelta) onDelta('Mocked response');
       return Promise.resolve('Mocked response');
     });
+    mockListConversations.mockImplementation(() => Promise.resolve([]));
   });
 
   test('initializes with empty states', () => {

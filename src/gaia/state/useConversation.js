@@ -75,6 +75,31 @@ export function useConversation() {
     return () => { cancelled = true; };
   }, [provider]);
 
+  // Auto-resume: on first load, reopen the most recently active
+  // conversation (gaia-api returns them newest-first by updatedAt) instead
+  // of always starting blank. Only "New page" should mint a fresh id after
+  // this — see newConversation().
+  useEffect(() => {
+    if (typeof provider.listConversations !== 'function') return undefined;
+    let cancelled = false;
+    provider.listConversations().then(async (list) => {
+      if (cancelled || list.length === 0) return;
+      const [mostRecent] = list;
+      const { meta, messages: history } = await provider.getConversation(mostRecent.id);
+      if (cancelled) return;
+      setConversations((c) => (c.some((x) => x.id === meta.id) ? c : [
+        { id: meta.id, title: meta.title, createdAt: Date.parse(meta.createdAt) || Date.now() },
+        ...c,
+      ]));
+      // The store persists only { role, content } (conversationStore.js) —
+      // give each restored message the id/createdAt the UI expects.
+      const restored = history.map((m) => ({ ...m, id: makeId(), createdAt: Date.now() }));
+      setByConv((prev) => ({ ...prev, [meta.id]: restored }));
+      setActiveId((current) => current ?? meta.id);
+    }).catch(() => { /* no history yet, or unreachable — start fresh */ });
+    return () => { cancelled = true; };
+  }, [provider]);
+
   const messages = activeId ? (byConv[activeId] || []) : [];
 
   const newConversation = useCallback((seed) => {
@@ -115,6 +140,7 @@ export function useConversation() {
     try {
       await provider.stream(transcript, {
         signal: controller.signal,
+        conversationId: convId,
         onDelta: (chunk, isReasoning) => {
           if (isReasoning) {
             fullReasoning += chunk;

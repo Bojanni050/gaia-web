@@ -47,13 +47,13 @@ export class GaiaCloudProvider extends ReasoningProvider {
     }
   }
 
-  async stream(messages, { signal, onDelta } = {}) {
+  async stream(messages, { signal, onDelta, conversationId } = {}) {
     let res;
     try {
       res = await fetch(`${this.baseUrl}/conversation/turn`, {
         method: 'POST',
         headers: this._headers(),
-        body: JSON.stringify({ messages, stream: true }),
+        body: JSON.stringify({ messages, stream: true, conversationId }),
         signal,
       });
     } catch (_) {
@@ -67,13 +67,13 @@ export class GaiaCloudProvider extends ReasoningProvider {
     return this._readSse(res.body, signal, onDelta);
   }
 
-  async chat(messages, { signal } = {}) {
+  async chat(messages, { signal, conversationId } = {}) {
     let res;
     try {
       res = await fetch(`${this.baseUrl}/conversation/turn`, {
         method: 'POST',
         headers: this._headers(),
-        body: JSON.stringify({ messages }),
+        body: JSON.stringify({ messages, conversationId }),
         signal,
       });
     } catch (_) {
@@ -89,6 +89,26 @@ export class GaiaCloudProvider extends ReasoningProvider {
       throw new ReasoningUnavailableError('invalid response body');
     }
     return data?.reply ?? '';
+  }
+
+  /**
+   * Recent conversations, newest-first (gaia-api sorts by updatedAt) — used
+   * to auto-resume the last active one on load instead of always starting
+   * fresh. See services/gaia-api/src/historyRoutes.js.
+   */
+  async listConversations() {
+    const res = await fetch(`${this.baseUrl}/conversations`, { headers: this._headers() });
+    if (!res.ok) throw new ReasoningUnavailableError(`conversations ${res.status}`);
+    const data = await res.json();
+    return data?.conversations ?? [];
+  }
+
+  async getConversation(id) {
+    const res = await fetch(`${this.baseUrl}/conversations/${encodeURIComponent(id)}`, {
+      headers: this._headers(),
+    });
+    if (!res.ok) throw new ReasoningUnavailableError(`conversations/${id} ${res.status}`);
+    return res.json();
   }
 
   // --- SSE ---------------------------------------------------------------
