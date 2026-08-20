@@ -93,14 +93,29 @@ export class GaiaCloudProvider extends ReasoningProvider {
 
   /**
    * Recent conversations, newest-first (gaia-api sorts by updatedAt) — used
-   * to auto-resume the last active one on load instead of always starting
-   * fresh. See services/gaia-api/src/historyRoutes.js.
+   * to keep the sidebar in sync with what other clients have saved. See
+   * services/gaia-api/src/historyRoutes.js.
    */
   async listConversations() {
     const res = await fetch(`${this.baseUrl}/conversations`, { headers: this._headers() });
     if (!res.ok) throw new ReasoningUnavailableError(`conversations ${res.status}`);
     const data = await res.json();
     return data?.conversations ?? [];
+  }
+
+  /**
+   * Pushed notification (SSE, historyRoutes.js's GET /conversations/events)
+   * that the conversation list changed — another client saved or deleted
+   * one. Carries no payload on purpose; callers re-fetch listConversations()
+   * themselves, so this can never drift from what a plain GET would return.
+   * Returns an unsubscribe function. No-ops (returns a no-op unsubscribe)
+   * when EventSource isn't available (e.g. under Node in tests).
+   */
+  subscribeToConversationChanges(onChange) {
+    if (typeof EventSource === 'undefined') return () => {};
+    const es = new EventSource(`${this.baseUrl}/conversations/events`);
+    es.addEventListener('changed', () => onChange());
+    return () => es.close();
   }
 
   async getConversation(id) {

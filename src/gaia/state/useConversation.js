@@ -75,60 +75,41 @@ export function useConversation() {
     return () => { cancelled = true; };
   }, [provider]);
 
-  // Refs so the poll below can read current state without re-creating its
-  // interval on every message/stream tick.
-  const activeIdRef = useRef(null);
-  useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
   const byConvRef = useRef({});
   useEffect(() => { byConvRef.current = byConv; }, [byConv]);
-  const streamActiveRef = useRef(false);
-  useEffect(() => { streamActiveRef.current = stream.active; }, [stream.active]);
 
   /**
-   * Resumes whichever conversation gaia-api considers most recently
-   * updated (newest-first list) if it differs from what's open here.
-   * Called once on load and then on a poll interval, so switching between
-   * gaia-web and gaia-desktop picks up whatever the *other* client most
-   * recently did — there is no push channel between clients, so this poll
-   * is the whole "shared session" mechanism for now.
-   *
-   * Two guards keep it from clobbering local, not-yet-saved state:
-   *   - a turn in flight here is never interrupted
-   *   - a conversation just started via "New page" (no messages sent yet,
-   *     so it isn't in gaia-api's list at all) is left alone rather than
-   *     being silently replaced by whatever another client last touched
+   * Refreshes the conversation list (sidebar metadata only — id/title,
+   * never messages, never activeId) from gaia-api. Called once on load and
+   * then on every 'changed' push from GaiaCloudProvider.subscribeToConversationChanges,
+   * so the sidebar picks up whatever another client (gaia-web in another
+   * tab, or gaia-desktop) saved, without ever switching what's open here.
+   * Local, not-yet-saved conversations (started via "New page", no
+   * messages sent yet — so absent from gaia-api's list) are preserved
+   * rather than dropped by this merge.
    */
-  const syncMostRecentConversation = useCallback(async () => {
+  const refreshConversationList = useCallback(async () => {
     if (typeof provider.listConversations !== 'function') return;
-    if (streamActiveRef.current) return;
     const list = await provider.listConversations();
-    if (list.length === 0) return;
-    const [mostRecent] = list;
-    const currentId = activeIdRef.current;
-    if (mostRecent.id === currentId) return;
-    if (currentId && (byConvRef.current[currentId] || []).length === 0) return;
-
-    const { meta, messages: history } = await provider.getConversation(mostRecent.id);
-    setConversations((c) => (c.some((x) => x.id === meta.id) ? c : [
-      { id: meta.id, title: meta.title, createdAt: Date.parse(meta.createdAt) || Date.now() },
-      ...c,
-    ]));
-    // The store persists only { role, content } (conversationStore.js) —
-    // give each restored message the id/createdAt the UI expects.
-    const restored = history.map((m) => ({ ...m, id: makeId(), createdAt: Date.now() }));
-    setByConv((prev) => ({ ...prev, [meta.id]: restored }));
-    setActiveId(meta.id);
-    setStream(emptyStream);
+    setConversations((local) => {
+      const remoteIds = new Set(list.map((m) => m.id));
+      const localOnly = local.filter((c) => !remoteIds.has(c.id));
+      const fromRemote = list.map((m) => ({
+        id: m.id, title: m.title, createdAt: Date.parse(m.createdAt) || Date.now(),
+      }));
+      return [...localOnly, ...fromRemote];
+    });
   }, [provider]);
 
   useEffect(() => {
     let cancelled = false;
-    syncMostRecentConversation().catch(() => { /* no history yet, or unreachable — start fresh */ });
-    const interval = setInterval(() => {
-      if (!cancelled) syncMostRecentConversation().catch(() => {});
-    }, 20000);
-    return () => { cancelled = true; clearInterval(interval); };
-  }, [syncMostRecentConversation]);
+    refreshConversationList().catch(() => { /* no history yet, or unreachable */ });
+    if (typeof provider.subscribeToConversationChanges !== 'function') return undefined;
+    const unsubscribe = provider.subscribeToConversationChanges(() => {
+      if (!cancelled) refreshConversationList().catch(() => {});
+    });
+    return () => { cancelled = true; unsubscribe(); };
+  }, [provider, refreshConversationList]);
 
   const messages = activeId ? (byConv[activeId] || []) : [];
 
@@ -140,10 +121,24 @@ export function useConversation() {
     return conv.id;
   }, []);
 
+  /**
+   * Opens a conversation from the sidebar. If it's only known here as
+   * metadata (synced via refreshConversationList, from another client or
+   * an earlier tab), its transcript hasn't been fetched yet — load it now
+   * rather than showing an empty conversation.
+   */
   const openConversation = useCallback((id) => {
     setActiveId(id);
     setStream(emptyStream);
-  }, []);
+    if (id in byConvRef.current) return;
+    if (typeof provider.getConversation !== 'function') return;
+    provider.getConversation(id).then(({ messages: history }) => {
+      // The store persists only { role, content } (conversationStore.js) —
+      // give each restored message the id/createdAt the UI expects.
+      const restored = history.map((m) => ({ ...m, id: makeId(), createdAt: Date.now() }));
+      setByConv((prev) => (id in prev ? prev : { ...prev, [id]: restored }));
+    }).catch(() => { /* left empty — user can retry by reselecting */ });
+  }, [provider]);
 
   const deleteConversation = useCallback((id) => {
     setConversations((c) => c.filter((x) => x.id !== id));
