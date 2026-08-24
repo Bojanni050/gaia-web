@@ -263,12 +263,12 @@
 
 @media (max-width: 480px) {
   .welcome-title { font-size: 1.7rem; }
-  .welcome { min-height: 50vh; }
+  .welcome { min-height: 40vh; }
   .conversation-column { padding: 0 14px; }
   .conversation-scroll .conversation-column { padding-top: 40px; }
   .health-whisper { padding: 10px 14px 0; }
-  .composer-dock { padding: 14px 0 4px; }
-  .dock-presence { padding: 0 0 4px; }
+  .composer-dock { padding: 10px 0 10px; }
+  .dock-presence { padding: 0 0 6px; }
   .composer { padding: 6px 6px 6px 12px; }
   .composer-tool-btn { width: 30px; height: 30px; }
   .message.user .user-text { max-width: 96%; }
