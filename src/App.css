@@ -257,11 +257,16 @@
     box-shadow: 0 0 40px rgba(0, 0, 0, 0.4);
   }
   .sidebar.open { transform: translateX(0); }
-  .conversation-scroll { padding-top: 60px; }
+  .conversation-scroll { padding-top: 60px; padding-bottom: 80px; box-sizing: border-box; }
   .conversation-scroll .conversation-column { padding-top: 0; }
   .conversation-column { padding: 0 20px; }
   .welcome-title { font-size: 2.1rem; }
   .message.user .user-text { max-width: 90%; }
+  .composer-dock {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 20;
+    background: var(--bg); padding: 6px 0 8px;
+  }
+  .dock-presence { display: none; }
 }
 
 @media (max-width: 480px) {
