@@ -19,6 +19,12 @@ import { L } from './lib/lexicon';
 export default function GaiaDesktop() {
   const status = useServerStatus(serverApi);
   const [quiet, setQuietState] = useState(false);
+  // App.css already ships the full mobile drawer design (.mobile-menu-btn,
+  // .sidebar-backdrop, .sidebar.open's slide-in transform under the
+  // max-width:900px breakpoint) and Threads.jsx already accepts open/onClose
+  // — none of it was ever wired up here, so below 900px the sidebar sat
+  // permanently translateX(-100%), i.e. invisible, with no way to open it.
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -66,17 +72,32 @@ export default function GaiaDesktop() {
 
   return (
     <div className="gaia-shell">
+      <button
+        className="mobile-menu-btn"
+        onClick={() => setSidebarOpen(true)}
+        aria-label={L.openMenu}
+        data-testid="mobile-menu-btn"
+      >
+        <Menu size={20} />
+      </button>
+      <div
+        className={`sidebar-backdrop${sidebarOpen ? ' open' : ''}`}
+        onClick={() => setSidebarOpen(false)}
+        data-testid="sidebar-backdrop"
+      />
       <Sidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
         threads={conversation.threads}
         activeId={conversation.activeId}
         lang={lang}
-        onSelect={conversation.openThread}
-        onNew={conversation.newThread}
+        onSelect={(id) => { conversation.openThread(id); setSidebarOpen(false); }}
+        onNew={() => { conversation.newThread(); setSidebarOpen(false); }}
         onDelete={conversation.deleteThread}
         onLangChange={handleLangChange}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenLibrary={() => setLibraryOpen(true)}
-        onOpenHistoryConversation={conversation.hydrateThread}
+        onOpenHistoryConversation={(id, messages) => { conversation.hydrateThread(id, messages); setSidebarOpen(false); }}
         onOpenAbout={() => setAboutOpen(true)}
         historyVersion={historyVersion}
       />
