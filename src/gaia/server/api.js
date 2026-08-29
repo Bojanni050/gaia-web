@@ -161,7 +161,13 @@ export const serverApi = {
     // For now, we'll simulate streaming by accumulating the response
     // In a real implementation, this would use SSE or similar
     const fullResponse = await response.json();
-    const fullText = fullResponse.body?.reply || '';
+    // server.js's own documented contract: POST /conversation/turn ->
+    // { reply: string }, flat — not { body: { reply } }. This mismatch
+    // meant every send produced an empty fullText, so receivedAny/fullReply
+    // in useConversation.js's runTurn were always falsy and every turn
+    // failed with "Gaia Server returned no reply" regardless of what Gaia
+    // actually answered.
+    const fullText = fullResponse.reply || '';
     
     // Split into chunks for simulation
     const chunkSize = 50;
@@ -229,18 +235,16 @@ export const speechApi = {
 
 export const libraryApi = {
   listFiles: async () => {
-    if (!apiBaseUrl) {
-      throw new Error('No Gaia Server configured');
-    }
-    const response = await request('get', '/library');
-    return response.body?.files || [];
+    // libraryRoutes.js mounts under /library and the list route is /files
+    // (GET /library/files -> { files: [...] }, a flat response — gaia-api
+    // has no {status,body} envelope anywhere; that shape only ever existed
+    // on the desktop's Tauri IPC bridge).
+    const response = await request('get', '/library/files');
+    return response.files || [];
   },
 
   deleteFile: async (id) => {
-    if (!apiBaseUrl) {
-      throw new Error('No Gaia Server configured');
-    }
-    await request('delete', `/library/${id}`);
+    await request('delete', `/library/files/${id}`);
     return { ok: true };
   },
 
@@ -261,10 +265,14 @@ export const libraryApi = {
           const formData = new FormData();
           formData.append('file', file);
 
-          const url = `${apiBaseUrl}/library/upload`;
+          // POST /library/files -> { id, filename, mimeType, size, uploadedAt }
+          // directly (libraryRoutes.js) — flat, not { file: {...} }. No
+          // Content-Type header here: fetch must set its own multipart
+          // boundary for FormData — getHeaders()'s fixed
+          // 'application/json' would break multer's parsing entirely.
+          const url = `${apiBaseUrl}/library/files`;
           const response = await fetch(url, {
             method: 'POST',
-            headers: getHeaders(),
             body: formData,
           });
 
@@ -273,7 +281,7 @@ export const libraryApi = {
           }
 
           const result = await response.json();
-          resolve(result.body?.file || { id: Date.now().toString(), filename: file.name });
+          resolve(result || { id: Date.now().toString(), filename: file.name });
         } catch (e) {
           resolve(null);
         }
@@ -283,15 +291,12 @@ export const libraryApi = {
   },
 
   async downloadFile(id, filename) {
-    if (!apiBaseUrl) {
-      throw new Error('No Gaia Server configured');
-    }
-
     try {
-      const url = `${apiBaseUrl}/library/${id}/download`;
+      // GET /library/files/:id -> raw file bytes (libraryRoutes.js); no
+      // separate /download suffix.
+      const url = `${apiBaseUrl}/library/files/${id}`;
       const response = await fetch(url, {
         method: 'GET',
-        headers: getHeaders(),
       });
 
       if (!response.ok) {
@@ -315,47 +320,44 @@ export const libraryApi = {
 };
 
 export const historyApi = {
+  // historyRoutes.js's responses are all flat JSON — { conversations: [...] },
+  // { meta, messages } — never a { status, body } envelope. That envelope
+  // shape only exists on gaia-desktop's Tauri IPC bridge; request() here
+  // already returns the parsed body directly, so response.body was always
+  // undefined and every one of these silently fell back to empty.
   list: async () => {
-    if (!apiBaseUrl) {
-      throw new Error('No Gaia Server configured');
-    }
     const response = await request('get', '/conversations');
-    return response.body?.conversations || [];
+    return response.conversations || [];
   },
 
   get: async (id) => {
-    if (!apiBaseUrl) {
-      throw new Error('No Gaia Server configured');
-    }
     const response = await request('get', `/conversations/${id}`);
     return {
-      meta: response.body?.meta || {},
-      messages: response.body?.messages || [],
+      meta: response.meta || {},
+      messages: response.messages || [],
     };
   },
 
   remove: async (id) => {
-    if (!apiBaseUrl) {
-      throw new Error('No Gaia Server configured');
-    }
     await request('delete', `/conversations/${id}`);
     return { ok: true };
   },
 
   exportJson: async (id) => {
-    if (!apiBaseUrl) {
-      throw new Error('No Gaia Server configured');
-    }
     const response = await request('get', `/conversations/${id}/export/json`);
-    return JSON.stringify(response.body || {}, null, 2);
+    return JSON.stringify(response, null, 2);
   },
 
   exportMarkdown: async (id) => {
-    if (!apiBaseUrl) {
-      throw new Error('No Gaia Server configured');
+    // The server sends this one as text/markdown, not JSON (res.send, not
+    // res.json — historyRoutes.js) — request() always calls response.json(),
+    // which would throw parsing a Markdown body, so this needs its own
+    // fetch.
+    const response = await fetch(`${apiBaseUrl}/conversations/${id}/export/markdown`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
     }
-    const response = await request('get', `/conversations/${id}/export/markdown`);
-    return response.body || '';
+    return response.text();
   },
 };
 
