@@ -159,7 +159,7 @@ webpackConfig.devServer = (devServerConfig) => {
     ...(devServerConfig.proxy || []),
     {
       context: ['/api/gaia'],
-      target: process.env.GAIA_API_PROXY_TARGET || 'http://100.64.144.93:8891',
+      target: process.env.GAIA_API_PROXY_TARGET || 'http://100.65.0.15:8891',
       changeOrigin: true,
       pathRewrite: { '^/api/gaia': '' },
       onProxyReq: (proxyReq) => {
