@@ -55,11 +55,16 @@ jobs:
 
             docker stop gaia-web 2>/dev/null || true
             docker rm gaia-web 2>/dev/null || true
-            # GAIA_API_TOKEN_WEB is injected into nginx's config at
-            # container start (nginx.conf.template's /api/gaia/ block,
-            # envsubst'd) — the browser never holds this token.
+            # GAIA_API_TOKEN_WEB and GAIA_API_HOST are injected into nginx's
+            # config at container start (nginx.conf.template's /api/gaia/
+            # block, envsubst'd) — the browser never holds the token.
+            # nginx's envsubst does NOT understand bash-style ${VAR:-default}
+            # syntax (confirmed: it crashes nginx with "closing bracket ...
+            # missing"), so the plain ${GAIA_API_HOST} in the template needs
+            # an actual value supplied here, not a default baked into it.
             docker run -d --name gaia-web --network gaia_net \
               -e GAIA_API_TOKEN_WEB='${{ secrets.GAIA_API_TOKEN_WEB }}' \
+              -e GAIA_API_HOST='100.65.0.15' \
               -p 127.0.0.1:8090:80 --restart unless-stopped gaia-web:latest
 
             sleep 3
@@ -68,6 +73,7 @@ jobs:
               docker stop gaia-web && docker rm gaia-web
               docker run -d --name gaia-web --network gaia_net \
                 -e GAIA_API_TOKEN_WEB='${{ secrets.GAIA_API_TOKEN_WEB }}' \
+                -e GAIA_API_HOST='100.65.0.15' \
                 -p 127.0.0.1:8090:80 --restart unless-stopped gaia-web:previous
               exit 1
             fi
