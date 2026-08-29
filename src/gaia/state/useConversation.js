@@ -1,357 +1,237 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { getReasoningProvider } from '../integration/reasoning';
-import { phraseReasoningError } from '../presence/errorPhrases';
-import { interpretIntent, reasonAboutTurn } from '../logos';
-
-const emptyStream = { active: false, messageId: null, content: '', reasoning: '', presence: 'quiet' };
-const PRESENCE_THINKING = 'thinking';
-const PRESENCE_SPEAKING = 'speaking';
-
-function makeId() {
-  return `m-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function titleFrom(text) {
-  const t = (text || '').trim();
-  if (!t) return 'A new page';
-  return t.split(/\s+/).slice(0, 7).join(' ').slice(0, 60);
-}
-
 /**
- * Development-only visibility into Logos's full cognitive loop for this
- * turn: intentIQ's IntentDecision, then reasonIQ's ReasoningResult
- * constructed from it. This milestone establishes both seams (user message
- * → intentIQ → IntentDecision → reasonIQ → ReasoningResult → existing Gaia
- * response flow) without changing routing or the response itself — see
- * docs/evolution.md. Fire-and-forget and non-blocking: neither faculty
- * throws (both fail safe internally), and this must never affect or delay
- * the conversation.
+ * Conversation state — turns over the Gaia Cloud seam, in-memory threads.
  *
- * Deliberately does not pass recalled memory into reasonAboutTurn here —
- * doing so would mean either a second Hindsight recall call (the real one
- * now happens server-side, inside gaia-api's performStreamingTurn, gated
- * by its own memoryPolicy — docs/web-migration-plan.md Phase B/C) or a
- * larger refactor of the turn lifecycle than this milestone calls for.
- * reasonIQ fully supports consuming recalled memory (see
- * reasonIQ.test.js); wiring that into this dev-log path is left for when
- * reasonIQ starts driving real behavior rather than being inspected in
- * isolation.
+ * This hook owns no cognition: it sends user text through serverApi and
+ * appends whatever reply the server returns. SOUL, memory, intent and
+ * reasoning never run here. The one thing added on top of that reply —
+ * speaking it via speechApi/playSpeech, gated by lib/language.js's
+ * looksEnglish (Xiaomi's TTS model only pronounces Chinese/English) — is
+ * presentation, not cognition: it runs strictly after a reply already
+ * exists, never changes what was said, and its own failure can never
+ * affect the turn (see runTurn).
  */
-function logLogosForDev(messages) {
-  if (process.env.NODE_ENV === 'production') return;
-  interpretIntent(messages).then((decision) => {
-    // eslint-disable-next-line no-console
-    console.debug('[Logos:intentIQ]', decision);
-    return reasonAboutTurn(decision, messages).then((result) => {
-      // eslint-disable-next-line no-console
-      console.debug('[Logos:reasonIQ]', result);
-    });
-  });
-}
+import { useCallback, useState } from 'react';
+import { buildStreamTurnBody } from './contract';
+import { phraseTurnError } from './phrases';
+import { speechApi } from '../server/api';
+import { playSpeech } from '../lib/speech';
+import { looksEnglish } from '../lib/language';
 
-/**
- * useConversation — Gaia's conversational state, in memory.
- */
-export function useConversation() {
-  const provider = useRef(getReasoningProvider()).current;
+let counter = 1;
+const localId = () => `${Date.now()}-${counter++}`;
 
-  const [conversations, setConversations] = useState([]);
+export function useConversation(server) {
+  const [threads, setThreads] = useState([]);
   const [activeId, setActiveId] = useState(null);
-  const [byConv, setByConv] = useState({});
-  const [stream, setStream] = useState(emptyStream);
-  const [health, setHealth] = useState({ status: 'unknown' });
+  const [busy, setBusy] = useState(false);
+  // True once the assistant's reply has started arriving — distinct from
+  // `busy` (which also covers the pre-first-token wait) so Conversation.jsx
+  // can swap the thinking indicator for the live-updating message at the
+  // right moment, not a beat too early or too late.
+  const [streaming, setStreaming] = useState(false);
 
-  const abortRef = useRef(null);
+  const active = threads.find((t) => t.id === activeId) || null;
 
-  useEffect(() => {
-    let cancelled = false;
-    provider.health().then((h) => {
-      if (cancelled) return;
-      setHealth({ status: h.ok ? 'ready' : 'unreachable', detail: h.detail });
-    }).catch(() => {
-      if (cancelled) return;
-      setHealth({ status: 'unreachable', detail: 'cannot reach reason engine' });
-    });
-    return () => { cancelled = true; };
-  }, [provider]);
-
-  const byConvRef = useRef({});
-  useEffect(() => { byConvRef.current = byConv; }, [byConv]);
-
-  /**
-   * Refreshes the conversation list (sidebar metadata only — id/title,
-   * never messages, never activeId) from gaia-api. Called once on load and
-   * then on every 'changed' push from GaiaCloudProvider.subscribeToConversationChanges,
-   * so the sidebar picks up whatever another client (gaia-web in another
-   * tab, or gaia-desktop) saved, without ever switching what's open here.
-   * Local, not-yet-saved conversations (started via "New page", no
-   * messages sent yet — so absent from gaia-api's list) are preserved
-   * rather than dropped by this merge.
-   */
-  const refreshConversationList = useCallback(async () => {
-    if (typeof provider.listConversations !== 'function') return;
-    const list = await provider.listConversations();
-    setConversations((local) => {
-      const remoteIds = new Set(list.map((m) => m.id));
-      const localOnly = local.filter((c) => !remoteIds.has(c.id));
-      const fromRemote = list.map((m) => ({
-        id: m.id, title: m.title, createdAt: Date.parse(m.createdAt) || Date.now(),
-      }));
-      return [...localOnly, ...fromRemote];
-    });
-  }, [provider]);
-
-  useEffect(() => {
-    let cancelled = false;
-    refreshConversationList().catch(() => { /* no history yet, or unreachable */ });
-    if (typeof provider.subscribeToConversationChanges !== 'function') return undefined;
-    const unsubscribe = provider.subscribeToConversationChanges(() => {
-      if (!cancelled) refreshConversationList().catch(() => {});
-    });
-    return () => { cancelled = true; unsubscribe(); };
-  }, [provider, refreshConversationList]);
-
-  const messages = activeId ? (byConv[activeId] || []) : [];
-
-  const newConversation = useCallback((seed) => {
-    const conv = { id: makeId(), title: titleFrom(seed || ''), createdAt: Date.now() };
-    setConversations((c) => [conv, ...c]);
-    setActiveId(conv.id);
-    setStream(emptyStream);
-    return conv.id;
+  const newThread = useCallback(() => {
+    const thread = { id: localId(), title: null, messages: [] };
+    setThreads((prev) => [thread, ...prev]);
+    setActiveId(thread.id);
   }, []);
 
-  /**
-   * Opens a conversation from the sidebar. If it's only known here as
-   * metadata (synced via refreshConversationList, from another client or
-   * an earlier tab), its transcript hasn't been fetched yet — load it now
-   * rather than showing an empty conversation.
-   */
-  const openConversation = useCallback((id) => {
+  const openThread = useCallback((id) => {
     setActiveId(id);
-    setStream(emptyStream);
-    if (id in byConvRef.current) return;
-    if (typeof provider.getConversation !== 'function') return;
-    provider.getConversation(id).then(({ messages: history }) => {
-      // The store persists only { role, content } (conversationStore.js) —
-      // give each restored message the id/createdAt the UI expects.
-      const restored = history.map((m) => ({ ...m, id: makeId(), createdAt: Date.now() }));
-      setByConv((prev) => (id in prev ? prev : { ...prev, [id]: restored }));
-    }).catch(() => { /* left empty — user can retry by reselecting */ });
-  }, [provider]);
-
-  const deleteConversation = useCallback((id) => {
-    setConversations((c) => c.filter((x) => x.id !== id));
-    setByConv((prev) => {
-      const { [id]: _removed, ...rest } = prev;
-      return rest;
-    });
-    setActiveId((current) => (current === id ? null : current));
   }, []);
 
-  const stop = useCallback(() => {
-    if (abortRef.current) abortRef.current.abort();
-  }, []);
-
-  const runStream = useCallback(async (convId, transcript, userText) => {
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    const assistantId = makeId();
-    setStream({ active: true, messageId: assistantId, content: '', reasoning: '', presence: PRESENCE_THINKING });
-
-    let fullText = '';
-    let fullReasoning = '';
-    try {
-      await provider.stream(transcript, {
-        signal: controller.signal,
-        conversationId: convId,
-        onDelta: (chunk, isReasoning) => {
-          if (isReasoning) {
-            fullReasoning += chunk;
-            setStream((s) => ({
-              ...s,
-              presence: PRESENCE_THINKING,
-              reasoning: (s.reasoning || '') + chunk
-            }));
-          } else {
-            fullText += chunk;
-            setStream((s) => ({
-              ...s,
-              presence: PRESENCE_SPEAKING,
-              content: s.content + chunk
-            }));
-          }
-        },
-      });
-
-      if (controller.signal.aborted) {
-        setStream(emptyStream);
-        return null;
-      }
-
-      setByConv((prev) => {
-        const current = prev[convId] || [];
-        return {
-          ...prev,
-          [convId]: [
-            ...current,
-            { id: assistantId, role: 'assistant', content: fullText, reasoning: fullReasoning, createdAt: Date.now() },
-          ],
-        };
-      });
-      setStream(emptyStream);
-      return fullText;
-    } catch (e) {
-      if (controller.signal.aborted) {
-        setStream(emptyStream);
-        return null;
-      }
-      const phrase = phraseReasoningError(e);
-      setStream(emptyStream);
-      setByConv((prev) => {
-        const current = prev[convId] || [];
-        return {
-          ...prev,
-          [convId]: [
-            ...current,
-            { id: makeId(), role: 'assistant', content: phrase, createdAt: Date.now(), error: true },
-          ],
-        };
-      });
-      return null;
-    } finally {
-      abortRef.current = null;
-    }
-  }, [provider]);
-
-  const send = useCallback(async (text, attachments = []) => {
-    const userText = (text || '').trim();
-    if (!userText && attachments.length === 0) return;
-
-    let convId = activeId;
-    if (!convId) {
-      convId = newConversation(userText || 'Attached files');
-    } else {
-      if (userText) {
-        setConversations((c) => c.map((x) => (x.id === convId ? { ...x, title: titleFrom(userText) } : x)));
-      }
-    }
-
-    const newMsg = { id: makeId(), role: 'user', content: userText, attachments, createdAt: Date.now() };
-
-    setByConv((prev) => {
-      const current = prev[convId] || [];
-      return {
-        ...prev,
-        [convId]: [...current, newMsg],
-      };
-    });
-
-    const currentConvMessages = byConv[convId] || [];
-    const turnSoFar = [...currentConvMessages, newMsg];
-    logLogosForDev(turnSoFar);
-    const { transcript, userText: recalledFor } = await assembleTranscript(turnSoFar);
-
-    await runStream(convId, transcript, recalledFor);
-  }, [activeId, byConv, newConversation, runStream]);
-
-  const editMessage = useCallback(async (messageId, newContent) => {
-    if (!activeId) return;
-
-    const current = byConv[activeId] || [];
-    const index = current.findIndex((x) => x.id === messageId);
-    if (index === -1) return;
-
-    const truncated = current.slice(0, index + 1);
-    truncated[index] = {
-      ...truncated[index],
-      content: newContent,
-      createdAt: Date.now(),
+  /**
+   * Loads a conversation the History panel fetched from Gaia Cloud
+   * (historyApi.get) into the active thread list, keyed by the same id
+   * the server already knows it by — so continuing the conversation from
+   * here appends to the same saved transcript rather than starting a new
+   * one. Replaces the thread if it's already open (e.g. re-opening after
+   * it fell out of the in-session list).
+   */
+  const hydrateThread = useCallback((id, messages) => {
+    const firstUser = messages.find((m) => m.role === 'user');
+    const thread = {
+      id,
+      title: firstUser ? firstUser.content.slice(0, 48) : null,
+      messages: messages.map((m) => ({ ...m, id: localId() })),
     };
-
-    setByConv((prev) => ({
-      ...prev,
-      [activeId]: truncated,
-    }));
-
-    const { transcript, userText } = await assembleTranscript(truncated);
-    await runStream(activeId, transcript, userText);
-  }, [activeId, byConv, runStream]);
-
-  const deleteMessage = useCallback((messageId) => {
-    if (!activeId) return;
-    setByConv((prev) => {
-      const current = prev[activeId] || [];
-      return {
-        ...prev,
-        [activeId]: current.filter((x) => x.id !== messageId),
-      };
+    setThreads((prev) => {
+      const exists = prev.some((t) => t.id === id);
+      return exists ? prev.map((t) => (t.id === id ? thread : t)) : [thread, ...prev];
     });
-  }, [activeId]);
+    setActiveId(id);
+  }, []);
 
-  const regenerate = useCallback(async (messageId) => {
-    if (!activeId) return;
+  const deleteThread = useCallback((id) => {
+    setThreads((prev) => {
+      const next = prev.filter((t) => t.id !== id);
+      setActiveId((current) => (current === id ? next[0]?.id ?? null : current));
+      return next;
+    });
+  }, []);
 
-    const current = byConv[activeId] || [];
-    const index = current.findIndex((x) => x.id === messageId);
-    if (index === -1) return;
+  /**
+   * Perform a turn for an already-built history, streaming the reply in as
+   * it arrives. The assistant message is created empty on the first delta
+   * (not before — until then the thinking indicator is still the honest
+   * state) and grown in place from there.
+   */
+  const runTurn = useCallback(
+    async (threadId, history) => {
+      setBusy(true);
+      const assistantId = localId();
+      // Tracked outside the state updaters below (which must stay pure —
+      // React StrictMode double-invokes them in dev, so mutating a closure
+      // variable from inside one would drop or duplicate the first delta).
+      // "does the thread already have this message" is instead derived
+      // fresh from `prev` each time, making both updaters idempotent.
+      let receivedAny = false;
 
-    const truncated = current.slice(0, index);
-    setByConv((prev) => ({
-      ...prev,
-      [activeId]: truncated,
-    }));
+      let fullReasoning = '';
+      const appendToAssistant = (text) => {
+        if (!text) return;
+        receivedAny = true;
+        setStreaming(true);
+        setThreads((prev) =>
+          prev.map((t) => {
+            if (t.id !== threadId) return t;
+            const exists = t.messages.some((m) => m.id === assistantId);
+            if (!exists) {
+              return { ...t, messages: [...t.messages, { id: assistantId, role: 'assistant', content: text }] };
+            }
+            return {
+              ...t,
+              messages: t.messages.map((m) =>
+                m.id === assistantId ? { ...m, content: m.content + text } : m
+              ),
+            };
+          })
+        );
+      };
 
-    const { transcript, userText } = await assembleTranscript(truncated);
-    await runStream(activeId, transcript, userText);
-  }, [activeId, byConv, runStream]);
+      try {
+        // threadId doubles as the server's conversationId — Gaia Cloud
+        // saves/appends the transcript under it (conversationStore.js),
+        // which is what lets History reopen this same thread later.
+        const body = buildStreamTurnBody(history, threadId);
+        const fullReply = await server.streamTurn(body, (delta) => {
+          if (delta.reasoningContent) fullReasoning += delta.reasoningContent;
+          appendToAssistant(delta.content);
+        });
+        // A turn that streamed no content deltas at all (empty reply) is a
+        // server-contract violation, same as the old parseReply's check —
+        // surface it as a failure rather than leaving a blank bubble.
+        if (!receivedAny || !fullReply) {
+          throw new Error('Gaia Server returned no reply');
+        }
+        if (fullReasoning) {
+          setThreads((prev) =>
+            prev.map((t) => {
+              if (t.id !== threadId) return t;
+              return {
+                ...t,
+                messages: t.messages.map((m) =>
+                  m.id === assistantId ? { ...m, reasoning: fullReasoning } : m
+                ),
+              };
+            })
+          );
+        }
+        // Gaia's voice — strictly a presentation step on the reply that
+        // just arrived. Fire-and-forget: text is already the canonical,
+        // already-displayed Gaia response; a TTS failure (not configured,
+        // provider hiccup, playback denied) must never affect the turn
+        // that already succeeded, so it's caught and swallowed here, same
+        // posture as reflectOnTurn/history-save on the server side.
+        //
+        // Gated to English-looking replies only: Xiaomi's
+        // mimo-v2.5-tts-voicedesign only supports Chinese/English
+        // pronunciation — Dutch text comes back badly mispronounced
+        // rather than rejected, so this must be checked before ever
+        // calling speechApi (see lib/language.js's own comment).
+        if (looksEnglish(fullReply)) {
+          speechApi
+            .synthesize(fullReply)
+            .then((bytes) => playSpeech(bytes))
+            .catch(() => {});
+        }
+      } catch (error) {
+        const phrase = phraseTurnError(error);
+        setThreads((prev) =>
+          prev.map((t) => {
+            if (t.id !== threadId) return t;
+            const exists = t.messages.some((m) => m.id === assistantId);
+            if (exists) {
+              return {
+                ...t,
+                messages: t.messages.map((m) =>
+                  m.id === assistantId ? { ...m, content: phrase, failed: true } : m
+                ),
+              };
+            }
+            return { ...t, messages: [...t.messages, { id: assistantId, role: 'assistant', content: phrase, failed: true }] };
+          })
+        );
+      } finally {
+        setBusy(false);
+        setStreaming(false);
+      }
+    },
+    [server]
+  );
 
-  const retry = useCallback(async (messageId) => {
-    if (!activeId) return;
+  const send = useCallback(
+    (rawText, attachments = []) => {
+      const content = rawText.trim();
+      if (!content || busy) return;
 
-    const current = byConv[activeId] || [];
-    const index = current.findIndex((x) => x.id === messageId);
-    if (index === -1) return;
+      const base = active || { id: localId(), title: null, messages: [] };
+      const threadId = base.id;
+      // `attachments` (full metadata) is kept for rendering the chip in
+      // MessageView; `attachmentIds` is the only part buildTurnRequest
+      // actually sends on — file bytes never pass through this hook, they
+      // already reached the library at upload time.
+      const userMessage = {
+        id: localId(),
+        role: 'user',
+        content,
+        attachments,
+        attachmentIds: attachments.map((a) => a.id),
+      };
+      const history = [...base.messages, userMessage];
 
-    const truncated = current.slice(0, index);
-    setByConv((prev) => ({
-      ...prev,
-      [activeId]: truncated,
-    }));
+      setThreads((prev) => {
+        const exists = prev.some((t) => t.id === threadId);
+        const thread = {
+          id: threadId,
+          title: base.title || content.slice(0, 48),
+          messages: history,
+        };
+        return exists ? prev.map((t) => (t.id === threadId ? thread : t)) : [thread, ...prev];
+      });
+      setActiveId(threadId);
+      return runTurn(threadId, history);
+    },
+    [active, busy, runTurn]
+  );
 
-    const { transcript, userText } = await assembleTranscript(truncated);
-    await runStream(activeId, transcript, userText);
-  }, [activeId, byConv, runStream]);
+  /** Retry a failed assistant message: drop it and everything after, resend. */
+  const retry = useCallback(
+    (messageId) => {
+      const thread = threads.find((t) => t.id === activeId);
+      if (!thread || busy) return;
+      const index = thread.messages.findIndex((m) => m.id === messageId);
+      if (index === -1) return;
+      const history = thread.messages.slice(0, index);
+      if (!history.some((m) => m.role === 'user')) return;
 
-  return {
-    conversations, activeId, messages, stream, health,
-    newConversation, openConversation, deleteConversation,
-    send, stop, editMessage, deleteMessage, regenerate, retry,
-  };
-}
+      setThreads((prev) => prev.map((t) => (t.id === thread.id ? { ...t, messages: history } : t)));
+      return runTurn(thread.id, history);
+    },
+    [threads, activeId, busy, runTurn]
+  );
 
-function buildTranscript(messages) {
-  return messages.map((m) => ({ role: m.role, content: m.content }));
-}
-
-function latestUserText(messages) {
-  for (let i = messages.length - 1; i >= 0; i -= 1) {
-    if (messages[i].role === 'user') return messages[i].content || '';
-  }
-  return '';
-}
-
-/**
- * Assembles the transcript sent to Gaia Cloud: the raw conversation, no
- * system messages. Identity (SOUL, context-aware document selection) and
- * memory (recall before the call, reflection after) are gaia-api's job
- * now (docs/web-migration-plan.md Phase B/C) — this client sends only
- * what the user actually said.
- */
-async function assembleTranscript(messages) {
-  return {
-    transcript: buildTranscript(messages),
-    userText: latestUserText(messages),
-  };
+  return { threads, active, activeId, busy, streaming, newThread, openThread, deleteThread, hydrateThread, send, retry };
 }

@@ -1,15 +1,27 @@
 import React from 'react';
-import { Plus, Trash2, X } from 'lucide-react';
+import { Plus, Trash2, X, Library, Settings, Info, History } from 'lucide-react';
+import HistorySection from '../history/HistorySection';
 import { L } from '../lib/lexicon';
 
+/**
+ * Sidebar — the desktop's look, ported: brand orb, the italic serif
+ * new-conversation button, the thread list with hover-delete, the
+ * collapsible History section beneath it, the NL/EN switcher and the quiet
+ * foot lines. The settings button is the web's own.
+ */
 export default function Threads({
-  conversations,
+  threads,
   activeId,
+  lang,
   onSelect,
   onNew,
   onDelete,
-  lang = 'nl',
   onLangChange,
+  onOpenSettings,
+  onOpenLibrary,
+  onOpenHistoryConversation,
+  historyVersion,
+  onOpenAbout,
   open = false,
   onClose,
 }) {
@@ -35,18 +47,18 @@ export default function Threads({
       </button>
 
       <div className="thread-list" data-testid="thread-list">
-        {conversations.map((c) => (
+        {threads.map((t) => (
           <div
-            key={c.id}
-            className={`thread-item${c.id === activeId ? ' active' : ''}`}
-            onClick={() => onSelect(c.id)}
+            key={t.id}
+            className={`thread-item${t.id === activeId ? ' active' : ''}`}
+            onClick={() => onSelect(t.id)}
             data-testid="thread-item"
           >
-            <span className="thread-title">{c.title || L.untitled}</span>
+            <span className="thread-title">{t.title || L.untitled}</span>
             <button
               className="thread-delete"
-              onClick={(e) => { e.stopPropagation(); onDelete(c.id); }}
-              aria-label="Delete conversation"
+              onClick={(e) => { e.stopPropagation(); onDelete(t.id); }}
+              aria-label={L.deleteConversation}
               data-testid="delete-conversation-btn"
             >
               <Trash2 size={14} />
@@ -55,7 +67,18 @@ export default function Threads({
         ))}
       </div>
 
+      <HistorySection onOpenConversation={onOpenHistoryConversation} refreshToken={historyVersion} />
+
       <div className="sidebar-foot">
+        <button className="settings-open-btn" onClick={onOpenLibrary}>
+          <Library size={13} /> {L.library}
+        </button>
+        <button className="settings-open-btn" onClick={onOpenSettings}>
+          <Settings size={13} /> {L.settings}
+        </button>
+        <button className="settings-open-btn" onClick={onOpenAbout}>
+          <Info size={13} /> {L.aboutTitle}
+        </button>
         <div className="lang-switcher" data-testid="lang-switcher">
           <button 
             className={`lang-btn ${lang === 'nl' ? 'active' : ''}`}
