@@ -37,12 +37,15 @@ export default function GaiaDesktop() {
   // screen out from under someone is not what "keep history in sync" means.
   const [historyVersion, setHistoryVersion] = useState(0);
   useEffect(() => {
-    let unlisten;
-    serverApi.onServerEvent((event) => {
+    // server/api.js's web onServerEvent returns the unsubscribe function
+    // synchronously (a plain in-process listener set) — unlike gaia-desktop's
+    // Tauri IPC version this was ported from, which is async and returns a
+    // Promise<unlisten>. No .then() needed here.
+    const unlisten = serverApi.onServerEvent((event) => {
       if (event?.topic === 'conversation.history.changed') {
         setHistoryVersion((v) => v + 1);
       }
-    }).then((fn) => { unlisten = fn; });
+    });
     return () => { if (unlisten) unlisten(); };
   }, []);
 
@@ -80,13 +83,34 @@ export default function GaiaDesktop() {
 
       <main className="gaia-main">
         <Conversation
-          thread={conversation.active}
-          busy={conversation.busy}
-          streaming={conversation.streaming}
+          messages={conversation.active?.messages ?? []}
+          // useConversation.js has no separate "live streaming message"
+          // concept — the assistant message is created on the first delta
+          // and grown in place inside `messages` itself. So the thinking
+          // indicator (stream.active && !stream.content) is only needed
+          // for the gap between "sent" and "first delta arrived"; once
+          // `streaming` flips true the growing message already renders via
+          // `messages`, so stream.active must flip false at the same time
+          // or MessageView would render it twice.
+          stream={{
+            active: conversation.busy && !conversation.streaming,
+            content: null,
+            presence: 'thinking',
+            messageId: null,
+          }}
+          health={{ status: status === 'offline' ? 'unreachable' : 'ok' }}
           presenceState={presenceState}
           whisper={whisper}
           onSend={conversation.send}
           onRetry={conversation.retry}
+          // useConversation.js does not implement edit/delete/regenerate/stop
+          // yet — MessageView/Composer still render these controls, so they
+          // need a safe no-op rather than crashing on click. Wiring real
+          // behavior for these is a separate, larger change.
+          onEdit={() => {}}
+          onDelete={() => {}}
+          onRegenerate={() => {}}
+          onStop={() => {}}
         />
       </main>
 
