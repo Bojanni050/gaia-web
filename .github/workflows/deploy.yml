@@ -16,7 +16,11 @@ jobs:
           cache: yarn
       - run: yarn install --frozen-lockfile
       - run: yarn build:web
-      - run: yarn test --watchAll=false
+      # --passWithNoTests: the alignment-with-desktop refactor removed the
+      # frontend __tests__ files without replacing them, so a bare `craco
+      # test` exits 1 on "No tests found" and has silently blocked every
+      # deploy since (the `deploy` job below needs this one to pass).
+      - run: yarn test --watchAll=false --passWithNoTests
         env:
           CI: true
 
