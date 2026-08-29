@@ -29,12 +29,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      # Public SSH on the VPS was closed 2026-08-29 — mirrors the same
+      # change in Gaia-Cloud's deploy.yml. The runner joins the tailnet
+      # first so it can reach the box on its Tailscale IP instead.
+      # DEPLOY_HOST must be set to 100.65.0.15.
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_CLIENT_SECRET }}
+          tags: tag:ci
+
       - name: Deploy gaia-web on the VPS
         uses: appleboy/ssh-action@v1.2.2
         with:
-          # Same VPS, same public-IPv4-for-this-hop-only pattern as
-          # Gaia-Cloud's gaia-api deploy (services stay Tailscale/
-          # localhost-bound; only this SSH hop is public).
+          # Tailscale IP — public SSH is closed, see note above.
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
