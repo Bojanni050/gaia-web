@@ -6,8 +6,14 @@
  * the same interface as the desktop's serverApi for consistency.
  */
 
-// Base URL for Gaia Cloud API - can be configured via settings
-let apiBaseUrl = localStorage.getItem('gaia.serverUrl') || '';
+// Base URL for Gaia Cloud API - overridable via Settings, but defaults to
+// the same-origin nginx proxy this deployment ships with (nginx.conf.template's
+// /api/gaia/ block, which injects the Bearer token server-side). Pointing
+// this at gaia-api's own host:port directly from the browser cannot work —
+// gaia-api sends no CORS headers and the token would have to live in the
+// browser — so an absolute URL should only be used for a genuinely
+// different, CORS-enabled Gaia Cloud instance.
+let apiBaseUrl = localStorage.getItem('gaia.serverUrl') || '/api/gaia';
 
 export function setApiBaseUrl(url) {
   apiBaseUrl = url;
