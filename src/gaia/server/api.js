@@ -6,42 +6,19 @@
  * the same interface as the desktop's serverApi for consistency.
  */
 
-// Base URL for Gaia Cloud API - overridable via Settings, but defaults to
-// the same-origin nginx proxy this deployment ships with (nginx.conf.template's
-// /api/gaia/ block, which injects the Bearer token server-side). Pointing
-// this at gaia-api's own host:port directly from the browser cannot work —
-// gaia-api sends no CORS headers and the token would have to live in the
-// browser — so an absolute URL should only be used for a genuinely
-// different, CORS-enabled Gaia Cloud instance.
-let apiBaseUrl = localStorage.getItem('gaia.serverUrl') || '/api/gaia';
-
-export function setApiBaseUrl(url) {
-  apiBaseUrl = url;
-  localStorage.setItem('gaia.serverUrl', url);
-}
-
-export function getApiBaseUrl() {
-  return apiBaseUrl;
-}
-
-// Authentication token
-let authToken = localStorage.getItem('gaia.authToken') || '';
-
-export function setAuthToken(token) {
-  authToken = token;
-  localStorage.setItem('gaia.authToken', token);
-}
-
-export function getAuthToken() {
-  return authToken;
-}
+// Base URL for Gaia Cloud API — fixed to this deployment's own same-origin
+// nginx proxy (nginx.conf.template's /api/gaia/ block), which injects the
+// Bearer token server-side. This used to be user-configurable via Settings
+// (an absolute URL + a manually-entered token), which cannot ever actually
+// work from a browser — gaia-api sends no CORS headers, so a direct
+// cross-origin call is always blocked, and the token would have to live in
+// the browser besides. There is exactly one gaia-api this deployment talks
+// to, so there is nothing to configure; the setting was removed rather than
+// fixed to be safely clearable.
+const apiBaseUrl = '/api/gaia';
 
 function getHeaders() {
-  const headers = { 'Content-Type': 'application/json' };
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`;
-  }
-  return headers;
+  return { 'Content-Type': 'application/json' };
 }
 
 /**
@@ -112,43 +89,13 @@ function setupEventSource() {
 }
 
 export const serverApi = {
-  getConfig: () => ({
-    serverUrl: apiBaseUrl,
-    authToken: authToken,
-  }),
-
-  applyConfig: (config) => {
-    if (config.serverUrl) setApiBaseUrl(config.serverUrl);
-    if (config.authToken) setAuthToken(config.authToken);
-    // Reconnect SSE if URL changed
-    if (config.serverUrl) {
-      if (eventSource) {
-        eventSource.close();
-        eventSource = null;
-      }
-      setupEventSource();
-    }
-    return Promise.resolve();
-  },
-
   getStatus: async () => {
-    if (!apiBaseUrl) {
-      return { status: 'notConfigured' };
-    }
     try {
       await request('get', '/health');
       return { status: 'online' };
     } catch (e) {
       return { status: 'offline' };
     }
-  },
-
-  testConnection: async () => {
-    if (!apiBaseUrl) {
-      throw new Error('No server URL configured');
-    }
-    await request('get', '/health');
-    return { ok: true };
   },
 
   request: (requestConfig) => {
@@ -251,18 +198,6 @@ export const presenceApi = {
   },
 };
 
-export const settingsApi = {
-  get: async () => ({
-    serverUrl: apiBaseUrl,
-    authToken: authToken,
-  }),
-
-  save: async (newSettings) => {
-    if (newSettings.serverUrl) setApiBaseUrl(newSettings.serverUrl);
-    if (newSettings.authToken) setAuthToken(newSettings.authToken);
-    return { ok: true };
-  },
-};
 
 export const captureApi = {
   listSources: async () => {

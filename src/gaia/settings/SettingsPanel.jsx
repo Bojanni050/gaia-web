@@ -1,27 +1,33 @@
 /**
- * Settings — this device's behaviour only: which Gaia Cloud server to reach,
- * notifications, quiet presence, and the local capability surfaces (audio,
- * capture). Nothing cognitive ever appears here.
+ * Settings — this device's behaviour only: notifications, quiet presence,
+ * and the local capability surfaces (audio, capture). Nothing cognitive
+ * ever appears here.
+ *
+ * There used to be a "Cloud" section here (server URL + auth token) letting
+ * this device point at an arbitrary Gaia Cloud instance. Removed: gaia-api
+ * sends no CORS headers, so a direct cross-origin call from the browser can
+ * never work anyway — this deployment always talks through its own
+ * same-origin nginx proxy (nginx.conf.template's /api/gaia/ block, which
+ * injects the Bearer token server-side), so there was never a legitimate
+ * value to put there. It was also the source of a real outage: someone
+ * entered the backend's direct address, and there was no way to clear it
+ * back out again short of wiping localStorage.
  *
  * Saving gives calm feedback: the button keeps its width, settles into a
  * soft "saved" state and quietly returns — never a jump or a flash.
  */
 import React, { useEffect, useState } from 'react';
-import { serverApi, settingsApi, audioApi, captureApi } from '../server/api';
+import { audioApi, captureApi } from '../server/api';
 import { L } from '../lib/lexicon';
 
 export default function SettingsPanel({ onClose, quiet, onQuietChange }) {
-  const [settings, setSettings] = useState(null);
+  const [settings, setSettings] = useState({ notificationsEnabled: true });
   const [audio, setAudio] = useState(null);
   const [captureSources, setCaptureSources] = useState([]);
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState(null);
   const [saveState, setSaveState] = useState('idle'); // idle | saving | saved
-  const [showToken, setShowToken] = useState(false);
 
   useEffect(() => {
     let active = true;
-    settingsApi.get().then((s) => active && setSettings(s)).catch(() => active && setSettings({}));
     audioApi.getStatus().then((a) => active && setAudio(a)).catch(() => {});
     captureApi.listSources().then((c) => active && setCaptureSources(c || [])).catch(() => {});
     return () => {
@@ -29,86 +35,19 @@ export default function SettingsPanel({ onClose, quiet, onQuietChange }) {
     };
   }, []);
 
-  if (!settings) {
-    return (
-      <div className="settings-overlay">
-        <div className="settings-panel">\u2026</div>
-      </div>
-    );
-  }
-
   const patch = (part) => setSettings((prev) => ({ ...prev, ...part }));
 
-  const save = async () => {
+  const save = () => {
     if (saveState === 'saving') return;
     setSaveState('saving');
-    try {
-      // For web, we save to localStorage
-      await settingsApi.save({
-        serverUrl: settings.serverUrl,
-        authToken: settings.authToken,
-      });
-      setSaveState('saved');
-      setTimeout(() => setSaveState('idle'), 1800);
-    } catch (_) {
-      setSaveState('idle');
-    }
-  };
-
-  const testConnection = async () => {
-    setTesting(true);
-    setTestResult(null);
-    try {
-      await serverApi.applyConfig({ serverUrl: settings.serverUrl, authToken: settings.authToken });
-      const status = await serverApi.testConnection();
-      setTestResult(status.ok ? 'ok' : 'error');
-    } catch (error) {
-      setTestResult('error');
-    } finally {
-      setTesting(false);
-    }
+    setSaveState('saved');
+    setTimeout(() => setSaveState('idle'), 1800);
   };
 
   return (
     <div className="settings-overlay" onClick={onClose}>
       <div className="settings-panel" onClick={(e) => e.stopPropagation()}>
         <h2>{L.settingsTitle}</h2>
-
-        <section>
-          <h3>{L.settingsCloud}</h3>
-          <label className="field">
-            <span>{L.settingsServerUrl}</span>
-            <input
-              type="url"
-              value={settings.serverUrl || ''}
-              placeholder="https://gaia.example/api"
-              onChange={(e) => patch({ serverUrl: e.target.value || null })}
-            />
-          </label>
-          <label className="field">
-            <span>{L.settingsAuthToken}</span>
-            <div className="token-row">
-              <input
-                type={showToken ? 'text' : 'password'}
-                value={settings.authToken || ''}
-                onChange={(e) => patch({ authToken: e.target.value || null })}
-              />
-              <button
-                type="button"
-                className="token-toggle"
-                onClick={() => setShowToken((prev) => !prev)}
-              >
-                {showToken ? '\u2713' : '\u25cb'}
-              </button>
-            </div>
-          </label>
-          <div className="field-row">
-            <button onClick={testConnection} disabled={testing}>
-              {testing ? L.settingsTesting : L.settingsTest}
-            </button>
-            {testResult && <span className={`test-result test-${testResult}`}>{String(testResult)}</span>}
-          </div>
-        </section>
 
         <section>
           <h3>{L.settingsBehaviour}</h3>
@@ -129,7 +68,7 @@ export default function SettingsPanel({ onClose, quiet, onQuietChange }) {
         <section>
           <h3>{L.settingsCapabilities}</h3>
           <p className="capability-line">
-            {L.settingsMicrophone}: {audio ? audio.available : '\u2014'}
+            {L.settingsMicrophone}: {audio ? audio.available : '—'}
           </p>
           <p className="capability-line">
             {L.settingsCaptureSources}:{' '}
