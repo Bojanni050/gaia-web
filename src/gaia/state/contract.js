@@ -3,7 +3,7 @@
  *
  * The web client sends plain user turns and renders plain replies. Identity,
  * memory, intent and reasoning all happen server-side: this file declares
- * the envelope, nothing more.
+ * the turn body, nothing more.
  */
 
 /**
@@ -25,80 +25,11 @@ function buildTurnBody(messages, conversationId) {
   return body;
 }
 
-export function buildTurnRequest(messages, conversationId) {
-  return { method: 'post', path: 'conversation/turn', body: buildTurnBody(messages, conversationId) };
-}
-
 /**
- * Build body for streaming turn (same shape as buildTurnRequest but without envelope)
+ * Build body for a streaming turn: POST /conversation/turn's flat JSON
+ * body ({ messages, conversationId?, attachmentIds? }) — gaia-api has no
+ * {status,body} envelope, so there is nothing to wrap or parse here.
  */
 export function buildStreamTurnBody(messages, conversationId) {
   return buildTurnBody(messages, conversationId);
-}
-
-export function parseReply(response) {
-  const reply = response?.body?.reply;
-  if (typeof reply === 'string' && reply.length > 0) {
-    return reply;
-  }
-  throw new Error('Gaia Server returned no reply');
-}
-
-// --- Chat history (history/HistorySection.jsx) -----------------------------
-
-export function buildHistoryListRequest() {
-  return { method: 'get', path: 'conversations' };
-}
-
-export function buildHistoryGetRequest(id) {
-  return { method: 'get', path: `conversations/${id}` };
-}
-
-export function buildHistoryDeleteRequest(id) {
-  return { method: 'delete', path: `conversations/${id}` };
-}
-
-export function buildHistoryExportJsonRequest(id) {
-  return { method: 'get', path: `conversations/${id}/export/json` };
-}
-
-export function buildHistoryExportMarkdownRequest(id) {
-  return { method: 'get', path: `conversations/${id}/export/markdown` };
-}
-
-export function parseHistoryList(response) {
-  const conversations = response?.body?.conversations;
-  return Array.isArray(conversations) ? conversations : [];
-}
-
-export function parseHistoryConversation(response) {
-  const messages = response?.body?.messages;
-  if (!Array.isArray(messages)) {
-    throw new Error('Gaia Server returned no conversation');
-  }
-  return { meta: response.body.meta || {}, messages };
-}
-
-export function parseHistoryExport(response, format) {
-  const body = response?.body;
-  if (!body) {
-    throw new Error('Gaia Server returned no export data');
-  }
-
-  if (format === 'json') {
-    const conversation = body.conversation;
-    if (!conversation) {
-      throw new Error('Gaia Server returned invalid export data');
-    }
-    return JSON.stringify(body, null, 2);
-  }
-
-  if (format === 'markdown') {
-    if (typeof body !== 'string') {
-      throw new Error('Gaia Server returned invalid markdown export');
-    }
-    return body;
-  }
-
-  throw new Error(`Unknown export format: ${format}`);
 }

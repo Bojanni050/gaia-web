@@ -190,7 +190,7 @@ export function useConversation(server) {
       const base = active || { id: localId(), title: null, messages: [] };
       const threadId = base.id;
       // `attachments` (full metadata) is kept for rendering the chip in
-      // MessageView; `attachmentIds` is the only part buildTurnRequest
+      // MessageView; `attachmentIds` is the only part buildStreamTurnBody
       // actually sends on — file bytes never pass through this hook, they
       // already reached the library at upload time.
       const userMessage = {

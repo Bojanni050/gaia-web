@@ -3,49 +3,34 @@
 A lifelong personal intelligence — the web client. Extracted from the
 `Gaia-Cloud` monorepo (Phase 1 of `docs/split-plan.md`, 2026-08-19).
 
-Gaia Web talks to Hermes, Hindsight, and the cognition service directly,
-same-origin, proxied by `nginx.conf` — see `Gaia-Cloud`'s
-`docs/architecture.md`. Logos (`intentIQ`/`reasonIQ`) still runs
-client-side here, an explicitly-flagged interim state (see `Gaia-Cloud`'s
-`docs/evolution.md`, Milestone 9's "known interim placement" note) —
-moving it server-side into Gaia Cloud is later work.
+Gaia Web is a thin client: it talks only to its own same-origin
+`gaia-api` route (`/api/gaia/`, proxied by `nginx.conf.template` — see
+`Gaia-Cloud`'s `docs/architecture.md`). Logos (`intentIQ`/`reasonIQ`),
+Hindsight, Chronicle and Hermes all run server-side in Gaia Cloud; this
+client executes no Logos itself. The direct `/api/hermes/`,
+`/api/hindsight/` and `/api/cognition/` routes were retired once the
+cutover was live-verified — every turn goes through `gaia-api`.
 
 ## Structure
 
-- `src/` — the React app (CRA/craco).
-- `scripts/fetch-foundation-artifact.js` — pulls
-  `src/gaia/foundation/artifact.json` (the system prompt dictionary) from
-  `Gaia-Cloud`'s published `foundation-latest` GitHub Release, rather than
-  building it locally from a vendored copy of `docs/`/`soul.md`. Cloud
-  owns identity and publishes it (`Gaia-Cloud/.github/workflows/
-  publish-foundation.yml`); this repo pulls, it doesn't fork its own copy
-  — the `docs/split-plan.md` direction landed 2026-08-19. Override the
-  source with `FOUNDATION_ARTIFACT_URL` to test against an unpublished
-  `docs/` change.
+- `src/` — the React app (CRA/craco). `src/gaia/server/api.js` is the
+  only bridge to Gaia Cloud (fixed same-origin `/api/gaia`, Bearer token
+  injected server-side by nginx); `src/gaia/state/useConversation.js`
+  owns no cognition — it sends user text and appends the server's reply.
 - `packages/gaia-contracts/` — Gaia's system contracts (SOUL, Hindsight,
   Hermes, Chronicles, MCP), aliased in via `craco.config.js` — see that
   package's own README for why it's an alias and not an installed
   dependency yet.
-- `Dockerfile` / `nginx.conf` — builds the `gaia-web` image; nginx doubles
-  as the same-origin API gateway toward Hermes/Hindsight/cognition.
+- `Dockerfile` / `nginx.conf.template` — builds the `gaia-web` image;
+  nginx doubles as the same-origin API gateway toward `gaia-api` (which
+  owns Logos, memory, retrieval and execution server-side).
 
 ## Scripts
 
 ```bash
-npm run fetch:foundation   # writes src/gaia/foundation/artifact.json
-npm run dev:web            # fetch + craco start
-npm run build:web          # fetch + craco build
+npm run dev:web            # craco start
+npm run build:web          # craco build
 ```
 
-Building requires network access to `github.com` (the artifact fetch).
-`Dockerfile` forces this step to always re-fetch on every image build
-(`--build-arg CACHEBUST=$(date +%s)`, see `.github/workflows/deploy.yml`)
-rather than risk Docker's layer cache serving a stale pull of Cloud's
-moving `foundation-latest` release.
-
-A `docs/`/`soul.md` change in `Gaia-Cloud` triggers a rebuild here
-automatically: `Gaia-Cloud/.github/workflows/publish-foundation.yml`
-runs `gh workflow run deploy.yml --repo Bojanni050/Gaia-Web` after
-publishing, authenticated with a `CROSS_REPO_TOKEN` repo secret over
-there (the default `github.token` can't trigger workflows in another
-repo).
+No artifact fetch: identity (SOUL/foundation) is owned and published by
+Gaia Cloud; this client builds no system prompt itself.
