@@ -99,6 +99,30 @@ export const LANGUAGES = {
     cognitionReopenPlaceholder: 'Waarom heroverwegen?',
     cognitionReopenRequired: 'Een reden is verplicht om te heroverwegen.',
 
+    // Kairos — episodes (interpretation first, observations on request)
+    logos: 'Tijdlijn',
+    logosHint:
+      'Wat ik in je activiteit herkende, als episodes. Wat je leest is een interpretatie — het bewijs zit eronder, op verzoek.',
+    logosEmpty: 'Ik heb nog geen episode herkend.',
+    logosLoading: 'Episodes laden…',
+    logosLoadFailed: 'Ik kon de episodes niet ophalen.',
+    logosClose: 'Sluiten',
+    logosEpisodeBadge: 'Episode / Interpretatie',
+    logosBadgeHint: 'Dit leidde ik af uit de observaties hieronder — het is geen letterlijk feit.',
+    logosContext: 'Betrokken context',
+    logosEvidenceToggle: 'Bekijk ruwe bewijslast',
+    logosCaptures: 'captures',
+    logosCapture: 'capture',
+    logosEvidenceEmpty: 'Geen ruwe observaties gevonden.',
+    logosEvidenceFailed: 'De ruwe bewijslast kon niet worden opgehaald.',
+    logosRawObservations: 'Ruwe observaties',
+    logosRawNote: 'Rechtstreeks vastgelegd door capture-rs — niet door mij geschreven.',
+    logosOcr: 'OCR',
+    logosAskGaia: 'Vraag hierover door',
+    logosLive: 'Live',
+    logosConnecting: 'Verbinden…',
+    logosOffline: 'Offline',
+
     // Settings
     settings: 'Instellingen',
     settingsTitle: 'Instellingen',
@@ -234,6 +258,30 @@ export const LANGUAGES = {
     cognitionReopenHint: 'You let this go. Take it back under examination? State why.',
     cognitionReopenPlaceholder: 'Why reconsider?',
     cognitionReopenRequired: 'A reason is required to reconsider.',
+
+    // Kairos — episodes (interpretation first, observations on request)
+    logos: 'Timeline',
+    logosHint:
+      'What I recognised in your activity, as episodes. What you read is an interpretation — the evidence is underneath, on request.',
+    logosEmpty: 'I have not recognised an episode yet.',
+    logosLoading: 'Loading episodes…',
+    logosLoadFailed: 'I could not fetch the episodes.',
+    logosClose: 'Close',
+    logosEpisodeBadge: 'Episode / Interpretation',
+    logosBadgeHint: 'I inferred this from the observations below — it is not a literal fact.',
+    logosContext: 'Involved context',
+    logosEvidenceToggle: 'View raw evidence',
+    logosCaptures: 'captures',
+    logosCapture: 'capture',
+    logosEvidenceEmpty: 'No raw observations found.',
+    logosEvidenceFailed: 'Could not fetch the raw evidence.',
+    logosRawObservations: 'Raw observations',
+    logosRawNote: 'Recorded directly by capture-rs — not written by me.',
+    logosOcr: 'OCR',
+    logosAskGaia: 'Ask about this',
+    logosLive: 'Live',
+    logosConnecting: 'Connecting…',
+    logosOffline: 'Offline',
 
     // Settings
     settings: 'Settings',

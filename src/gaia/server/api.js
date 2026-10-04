@@ -392,3 +392,74 @@ export const cognitionApi = {
     return request('post', `/cognition/hypotheses/${id}/confirm`, Object.keys(body).length > 0 ? body : null);
   },
 };
+
+/**
+ * Kairos episodes — the narrative spans Kairos synthesized from raw
+ * observations (`/kairos/*` on Gaia Cloud). Each is an interpretation with
+ * `sources` pointing back to the raw observations; `evidence` walks that
+ * provenance down to the underlying records on demand. gaia-api returns flat
+ * JSON, so each method reads the parsed body directly (list wraps `{ data,
+ * pagination }`).
+ */
+export const episodeApi = {
+  list: async (query = {}) => {
+    const params = new URLSearchParams();
+    if (query.page) params.set('page', String(query.page));
+    if (query.limit) params.set('limit', String(query.limit));
+    if (query.since) params.set('since', query.since);
+    const suffix = params.toString() ? `?${params}` : '';
+    const response = await request('get', `/kairos/episodes${suffix}`);
+    return Array.isArray(response.data) ? response.data : [];
+  },
+  evidence: async (id) => {
+    const response = await request('get', `/kairos/episodes/${encodeURIComponent(id)}/evidence`);
+    return Array.isArray(response.observations) ? response.observations : [];
+  },
+};
+
+/**
+ * Live Kairos episodes over SSE (`kairos/episodes/stream`). Unlike the history
+ * bus, this stream uses a NAMED event (`event: episode`), so a plain
+ * `onmessage` handler never fires — this opens its own EventSource and listens
+ * for that event by name. Returns an unsubscribe function. `handler` receives
+ * one raw episode object per synthesis; the optional `onStatus` receives
+ * 'connected' | 'connecting' | 'offline' so a caller can drive an honest live
+ * indicator. Auth is injected by nginx, so a same-origin EventSource needs no
+ * header (browsers cannot set one anyway).
+ */
+export function subscribeEpisodes(handler, { onStatus } = {}) {
+  if (!apiBaseUrl) return () => {};
+  let source = null;
+  let closed = false;
+  let reconnectTimer = null;
+  const status = (s) => { if (onStatus) onStatus(s); };
+
+  const connect = () => {
+    if (closed) return;
+    status('connecting');
+    source = new EventSource(`${apiBaseUrl}/kairos/episodes/stream`);
+    source.addEventListener('open', () => status('connected'));
+    source.addEventListener('episode', (event) => {
+      try {
+        handler(JSON.parse(event.data));
+      } catch (e) {
+        console.warn('Failed to parse Kairos episode event:', e);
+      }
+    });
+    source.onerror = () => {
+      source.close();
+      source = null;
+      if (closed) return;
+      status('offline');
+      reconnectTimer = setTimeout(connect, 5000);
+    };
+  };
+
+  connect();
+
+  return () => {
+    closed = true;
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    if (source) source.close();
+  };
+}

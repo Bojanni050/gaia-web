@@ -2,6 +2,7 @@ import React from 'react';
 import { Plus, Trash2, X, Library, Settings, Info, History } from 'lucide-react';
 import HistorySection from '../history/HistorySection';
 import ReviewSection from '../cognition/ReviewSection';
+import KairosSection from '../kairos/KairosSection';
 import { L } from '../lib/lexicon';
 
 /**
@@ -69,6 +70,8 @@ export default function Threads({
       </div>
 
       <ReviewSection />
+
+      <KairosSection />
 
       <HistorySection onOpenConversation={onOpenHistoryConversation} refreshToken={historyVersion} />
 
