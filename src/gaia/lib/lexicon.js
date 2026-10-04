@@ -94,6 +94,10 @@ export const LANGUAGES = {
     cognitionNuance: 'Nuanceren',
     cognitionNuanceHint: 'Herschrijf de stelling zoals jij het bedoelt (optioneel).',
     cognitionNuancePlaceholder: 'Jouw formulering…',
+    cognitionReopen: 'Heroverwegen',
+    cognitionReopenHint: 'Je hebt dit losgelaten. Wil je het toch weer in onderzoek nemen? Zeg waarom.',
+    cognitionReopenPlaceholder: 'Waarom heroverwegen?',
+    cognitionReopenRequired: 'Een reden is verplicht om te heroverwegen.',
 
     // Settings
     settings: 'Instellingen',
@@ -226,6 +230,10 @@ export const LANGUAGES = {
     cognitionNuance: 'Nuance',
     cognitionNuanceHint: 'Rewrite the statement the way you mean it (optional).',
     cognitionNuancePlaceholder: 'Your wording…',
+    cognitionReopen: 'Reconsider',
+    cognitionReopenHint: 'You let this go. Take it back under examination? State why.',
+    cognitionReopenPlaceholder: 'Why reconsider?',
+    cognitionReopenRequired: 'A reason is required to reconsider.',
 
     // Settings
     settings: 'Settings',

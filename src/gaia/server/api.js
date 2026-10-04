@@ -383,6 +383,7 @@ export const cognitionApi = {
   },
   test: (id) => request('post', `/cognition/hypotheses/${id}/test`),
   reject: (id, reason) => request('post', `/cognition/hypotheses/${id}/reject`, reason ? { reason } : null),
+  reopen: (id, reason) => request('post', `/cognition/hypotheses/${id}/reopen`, { reason }),
   confirm: (id, { supersedes, rationale, statement } = {}) => {
     const body = {};
     if (Array.isArray(supersedes) && supersedes.length > 0) body.supersedes = supersedes;
