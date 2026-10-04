@@ -33,3 +33,37 @@ function buildTurnBody(messages, conversationId) {
 export function buildStreamTurnBody(messages, conversationId) {
   return buildTurnBody(messages, conversationId);
 }
+
+// --- cognition review (gaia/cognition/ReviewSection.jsx) --------------------
+// The human Absolute Override. The web client talks to gaia-api's flat JSON
+// directly (no {status,body} envelope), so these builders describe the request
+// only; the API module reads the parsed body.
+
+/** The derived statements awaiting the person's judgement. */
+export function buildCognitionListRequest() {
+  return { method: 'get', path: '/cognition/hypotheses' };
+}
+
+export function buildCognitionTestRequest(id) {
+  return { method: 'post', path: `/cognition/hypotheses/${id}/test` };
+}
+
+export function buildCognitionRejectRequest(id, reason) {
+  const request = { method: 'post', path: `/cognition/hypotheses/${id}/reject` };
+  if (reason) request.body = { reason };
+  return request;
+}
+
+/**
+ * `confirm` is the only path to `confirmed`. `supersedes` names older,
+ * contradicting statements this replaces (the server marks them rejected as
+ * `consolidatie`).
+ */
+export function buildCognitionConfirmRequest(id, { supersedes, rationale } = {}) {
+  const request = { method: 'post', path: `/cognition/hypotheses/${id}/confirm` };
+  const body = {};
+  if (Array.isArray(supersedes) && supersedes.length > 0) body.supersedes = supersedes;
+  if (rationale) body.rationale = rationale;
+  if (Object.keys(body).length > 0) request.body = body;
+  return request;
+}

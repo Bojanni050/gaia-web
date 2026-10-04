@@ -56,6 +56,25 @@ export const LANGUAGES = {
     historyExport: 'Exporteren',
     historyExportFailed: 'Exporteren is niet gelukt.',
 
+    // Cognition review (human Absolute Override)
+    cognition: 'Begrip',
+    cognitionTitle: 'Wat ik begrijp',
+    cognitionHint: 'Wat ik meen op te merken, wacht op jouw oordeel. Jij bevestigt — ik niet.',
+    cognitionEmpty: 'Er wacht nu niets op je oordeel.',
+    cognitionLoading: 'Laden…',
+    cognitionLoadFailed: 'Dit kon ik niet ophalen.',
+    cognitionConfirm: 'Bevestigen',
+    cognitionReject: 'Loslaten',
+    cognitionTesting: 'Onderzoeken',
+    cognitionConfirmed: 'Bevestigd',
+    cognitionRejected: 'Losgelaten',
+    cognitionActionFailed: 'Dit is niet gelukt. Probeer het opnieuw.',
+    cognitionStatusProposed: 'voorgesteld',
+    cognitionStatusTesting: 'in onderzoek',
+    cognitionStatusCorroborated: 'bevestigd door herhaling',
+    cognitionStatusConfirmed: 'bevestigd',
+    cognitionStatusRejected: 'losgelaten',
+
     // Settings
     settings: 'Instellingen',
     settingsTitle: 'Instellingen',
@@ -148,6 +167,25 @@ export const LANGUAGES = {
     historyDeleteFailed: 'Could not delete this conversation.',
     historyExport: 'Export',
     historyExportFailed: 'Could not export this conversation.',
+
+    // Cognition review (human Absolute Override)
+    cognition: 'Understanding',
+    cognitionTitle: 'What I understand',
+    cognitionHint: 'What I think I notice, waiting for your judgement. You confirm — I do not.',
+    cognitionEmpty: 'Nothing is awaiting your judgement right now.',
+    cognitionLoading: 'Loading…',
+    cognitionLoadFailed: 'Could not fetch this.',
+    cognitionConfirm: 'Confirm',
+    cognitionReject: 'Let go',
+    cognitionTesting: 'Examine',
+    cognitionConfirmed: 'Confirmed',
+    cognitionRejected: 'Let go',
+    cognitionActionFailed: 'That did not work. Please try again.',
+    cognitionStatusProposed: 'proposed',
+    cognitionStatusTesting: 'under examination',
+    cognitionStatusCorroborated: 'corroborated',
+    cognitionStatusConfirmed: 'confirmed',
+    cognitionStatusRejected: 'let go',
 
     // Settings
     settings: 'Settings',

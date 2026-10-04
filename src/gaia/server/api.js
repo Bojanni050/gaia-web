@@ -369,3 +369,24 @@ export const notify = (options) => {
     });
   }
 };
+
+/**
+ * Cognition review — the derived statements Logos is still weighing and the
+ * human verdicts on them (`/cognition/*` on Gaia Cloud). `confirm` is the only
+ * path to `confirmed`. gaia-api returns flat JSON, so each method reads the
+ * parsed body directly (never a { status, body } envelope).
+ */
+export const cognitionApi = {
+  list: async () => {
+    const response = await request('get', '/cognition/hypotheses');
+    return response.hypotheses || [];
+  },
+  test: (id) => request('post', `/cognition/hypotheses/${id}/test`),
+  reject: (id, reason) => request('post', `/cognition/hypotheses/${id}/reject`, reason ? { reason } : null),
+  confirm: (id, { supersedes, rationale } = {}) => {
+    const body = {};
+    if (Array.isArray(supersedes) && supersedes.length > 0) body.supersedes = supersedes;
+    if (rationale) body.rationale = rationale;
+    return request('post', `/cognition/hypotheses/${id}/confirm`, Object.keys(body).length > 0 ? body : null);
+  },
+};
