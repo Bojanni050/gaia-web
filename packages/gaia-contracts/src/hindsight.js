@@ -46,6 +46,8 @@
  * @property {string[]} evidence_memory_ids
  * @property {string|null} confirmed_document_id // set once confirmed; the Hindsight document it was retained as
  * @property {string|null} rejection_reason
+ * @property {string|null} counter_hypothesis // the quarantined anti-lexicographic opposing reading; required before confirmation
+ * @property {'micro'|'macro'} scope          // epistemic entrenchment; macro always needs the human
  * @property {string} created_at
  * @property {string} updated_at
  *
@@ -66,6 +68,7 @@
  */
 export const MEMORY_DOMAINS = Object.freeze(['preferences', 'patterns', 'context', 'relationships']);
 export const HYPOTHESIS_STATUSES = Object.freeze(['proposed', 'testing', 'confirmed', 'rejected']);
+export const HYPOTHESIS_SCOPES = Object.freeze(['micro', 'macro']);
 export const HINDSIGHT_CAPABILITIES = Object.freeze([
   'storeReflection', 'retrieveRelevantContext', 'listProvenance', 'editMemory', 'forget',
   'formPattern', 'queryPatterns',
