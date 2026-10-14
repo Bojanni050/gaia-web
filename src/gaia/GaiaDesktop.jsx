@@ -105,6 +105,7 @@ export default function GaiaDesktop() {
       <main className="gaia-main">
         <Conversation
           messages={conversation.active?.messages ?? []}
+          conversationId={conversation.activeId}
           // useConversation.js has no separate "live streaming message"
           // concept — the assistant message is created on the first delta
           // and grown in place inside `messages` itself. So the thinking

@@ -61,7 +61,10 @@ function AssistantBody({ content, reasoning, streaming }) {
   return (
     <>
       {displayReasoning && (
-        <details className="thought-process" open={streaming} data-testid="thought-process">
+        // Closed from the first token: the thought process is something to
+        // look into, not a panel that unfolds above the answer while the
+        // answer is still being written.
+        <details className="thought-process" data-testid="thought-process">
           <summary className="thought-process-title">{L.thoughtProcess}</summary>
           <div className="thought-process-body">
             <Markdown>{displayReasoning}</Markdown>
