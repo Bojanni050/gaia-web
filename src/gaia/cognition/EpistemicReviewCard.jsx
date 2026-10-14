@@ -11,6 +11,12 @@
  * at all. The only action is an explicit human "Reconsider" that requires a
  * stated reason — the one path back to testing, mirrored by the server.
  *
+ * A confirmed statement is settled: the person has already judged it. The card
+ * keeps the statement, the evidence and the counter-reading, but offers no
+ * verdict — nothing in the transition table leaves `confirmed`, so a button
+ * here could only answer with a 409 the person reads as a failure. The status
+ * above the statement already says the verdict.
+ *
  * The card renders only what the record actually carries (statement, evidence
  * ids, counter_hypothesis, scope). It never invents an implication specific to
  * the statement — the multiple-choice test below is a fixed, honest stand-in
@@ -39,6 +45,7 @@ export default function EpistemicReviewCard({ item, busy, onTest, onReject, onCo
   const [reopenReason, setReopenReason] = useState('');
 
   const isRejected = item.status === 'rejected';
+  const isConfirmed = item.status === 'confirmed';
   const isMacro = item.scope !== 'micro';
   const hasCounter = Boolean(item.counter_hypothesis && item.counter_hypothesis.trim());
   const evidenceFor = Array.isArray(item.evidence_for) ? item.evidence_for : [];
@@ -165,7 +172,7 @@ export default function EpistemicReviewCard({ item, busy, onTest, onReject, onCo
             </div>
           )}
 
-          {isMacro && (
+          {isMacro && !isConfirmed && (
             <div className="cognition-implication">
               <span className="cognition-implication-prompt">{L.cognitionImplicationPrompt}</span>
               {IMPLICATIONS.map((key) => (
@@ -200,7 +207,7 @@ export default function EpistemicReviewCard({ item, busy, onTest, onReject, onCo
             <RotateCcw size={14} />
             {L.cognitionReopen}
           </button>
-        ) : (
+        ) : isConfirmed ? null : (
           <>
             {item.status !== 'testing' && (
               <button
