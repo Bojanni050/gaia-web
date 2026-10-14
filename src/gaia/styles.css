@@ -159,6 +159,28 @@ body {
 .sidebar-section-error { font-family: var(--sans); font-size: 0.78rem; color: #C98B7A; padding: 4px 12px; }
 
 /* cognition review — the human Absolute Override in the sidebar */
+/* The three lists — what waits for a verdict, what was settled, what was let go
+   — as pills. They ride INSIDE the section's own 220px scroll area, so they
+   stick to its top: scrolling a list must never scroll its tabs away. */
+.cognition-tabs {
+  position: sticky; top: 0; z-index: 1;
+  display: flex; flex-wrap: wrap; gap: 4px;
+  padding: 4px 12px 6px; background: var(--surface);
+}
+.cognition-tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border); background: transparent;
+  font-family: var(--sans); font-size: 0.76rem; color: var(--text-faint);
+  transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+}
+.cognition-tab:hover { color: var(--text); }
+.cognition-tab.active { color: var(--text); border-color: var(--accent-line); background: var(--surface-2); }
+.cognition-tab-count {
+  font-size: 0.68rem; line-height: 1; padding: 2px 5px; border-radius: 999px;
+  background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border);
+}
+.cognition-tab.active .cognition-tab-count { border-color: var(--accent-line); color: var(--text); }
 .cognition-item { flex-direction: column; align-items: stretch; gap: 4px; cursor: default; }
 .cognition-item:hover { background: var(--surface-2); }
 .cognition-item .thread-actions { justify-content: flex-end; margin-top: 2px; }

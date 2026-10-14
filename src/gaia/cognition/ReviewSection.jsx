@@ -10,18 +10,38 @@
  * counter-hypothesis can be opened, and a macro statement additionally demands
  * a conscious implication choice before Confirm unlocks. The web client reads
  * gaia-api's flat JSON, so cognitionApi returns the parsed body directly.
+ *
+ * Three tabs, one list each: "To review" (what still waits for a verdict),
+ * "Confirmed" (the person's own record of what was settled) and "Reconsider"
+ * (what was let go — a hard quarantine whose only way back is a stated reason,
+ * so it is a list of its own instead of a form sitting in the middle of the
+ * cards that still ask something). All three are filled from the one list the
+ * server returns, so switching never costs a round trip.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ChevronRight, Lightbulb } from 'lucide-react';
 import { cognitionApi } from '../server/api';
 import { L } from '../lib/lexicon';
 import EpistemicReviewCard from './EpistemicReviewCard';
+
+// The section's three lists. `review` is everything that is neither settled nor
+// let go — what still waits for a verdict; `confirmed` is the person's own
+// record; `reopen` is the rejected quarantine.
+const TAB_REVIEW = 'review';
+const TAB_CONFIRMED = 'confirmed';
+const TAB_REOPEN = 'reopen';
+const TAB_ORDER = [TAB_REVIEW, TAB_CONFIRMED, TAB_REOPEN];
+
+/** The one place that decides which list a statement belongs to. */
+const listOf = (item) =>
+  item.status === 'rejected' ? TAB_REOPEN : item.status === 'confirmed' ? TAB_CONFIRMED : TAB_REVIEW;
 
 export default function ReviewSection() {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState(null); // null = not loaded yet
   const [error, setError] = useState(null);
   const [busyId, setBusyId] = useState(null);
+  const [tab, setTab] = useState(TAB_REVIEW);
 
   const load = () =>
     cognitionApi
@@ -72,6 +92,19 @@ export default function ReviewSection() {
     run(item, () => cognitionApi.reopen(item.id, reason),
       (response) => afterAction(item.id, { ...(response || {}), status: 'testing' }));
 
+  // All three lists are views on the one fetch.
+  const lists = useMemo(() => {
+    const grouped = { [TAB_REVIEW]: [], [TAB_CONFIRMED]: [], [TAB_REOPEN]: [] };
+    (items || []).forEach((item) => grouped[listOf(item)].push(item));
+    return grouped;
+  }, [items]);
+  const shownItems = lists[tab];
+  const tabCopy = {
+    [TAB_REVIEW]: { label: L.cognitionTabReview, empty: L.cognitionEmpty },
+    [TAB_CONFIRMED]: { label: L.cognitionTabConfirmed, empty: L.cognitionConfirmedEmpty },
+    [TAB_REOPEN]: { label: L.cognitionTabReopen, empty: L.cognitionReopenEmpty },
+  };
+
   return (
     <div className="sidebar-section">
       <button className="sidebar-section-header" onClick={toggle} aria-expanded={open}>
@@ -85,22 +118,50 @@ export default function ReviewSection() {
           {error && <div className="sidebar-section-error">{error}</div>}
           {items === null ? (
             <p className="sidebar-section-hint">{L.cognitionLoading}</p>
-          ) : items.length === 0 ? (
-            <p className="sidebar-section-hint">{L.cognitionEmpty}</p>
           ) : (
             <>
-              <p className="sidebar-section-hint">{L.cognitionHint}</p>
-              {items.map((item) => (
-                <EpistemicReviewCard
-                  key={item.id}
-                  item={item}
-                  busy={busyId === item.id}
-                  onConfirm={handleConfirm}
-                  onReject={handleReject}
-                  onTest={handleTest}
-                  onReopen={handleReopen}
-                />
-              ))}
+              <div className="cognition-tabs" role="tablist" aria-label={L.cognition}>
+                {TAB_ORDER.map((id) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="tab"
+                    id={`cognition-tab-${id}`}
+                    aria-controls="cognition-tabpanel"
+                    aria-selected={tab === id}
+                    className={`cognition-tab${tab === id ? ' active' : ''}`}
+                    onClick={() => setTab(id)}
+                  >
+                    {tabCopy[id].label}
+                    {lists[id].length > 0 && <span className="cognition-tab-count">{lists[id].length}</span>}
+                  </button>
+                ))}
+              </div>
+              <div
+                className="cognition-tabpanel"
+                id="cognition-tabpanel"
+                role="tabpanel"
+                aria-labelledby={`cognition-tab-${tab}`}
+              >
+                {shownItems.length === 0 ? (
+                  <p className="sidebar-section-hint">{tabCopy[tab].empty}</p>
+                ) : (
+                  <>
+                    {tab === TAB_REVIEW && <p className="sidebar-section-hint">{L.cognitionHint}</p>}
+                    {shownItems.map((item) => (
+                      <EpistemicReviewCard
+                        key={item.id}
+                        item={item}
+                        busy={busyId === item.id}
+                        onConfirm={handleConfirm}
+                        onReject={handleReject}
+                        onTest={handleTest}
+                        onReopen={handleReopen}
+                      />
+                    ))}
+                  </>
+                )}
+              </div>
             </>
           )}
         </div>
