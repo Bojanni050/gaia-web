@@ -36,6 +36,15 @@ const TAB_ORDER = [TAB_REVIEW, TAB_CONFIRMED, TAB_REOPEN];
 const listOf = (item) =>
   item.status === 'rejected' ? TAB_REOPEN : item.status === 'confirmed' ? TAB_CONFIRMED : TAB_REVIEW;
 
+/**
+ * gaia-api serves what is under review as a round (reviewRound.js): at most a
+ * handful of statements that carry weight (macro, or a counter-hypothesis) and
+ * have built up enough evidence. The rest is not hidden away for good — it
+ * waits for a later round, and is only counted here. A server that sends no
+ * round (`in_round` absent) shows everything, as before.
+ */
+const isWaiting = (item) => listOf(item) === TAB_REVIEW && item.in_round === false;
+
 export default function ReviewSection() {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState(null); // null = not loaded yet
@@ -93,10 +102,17 @@ export default function ReviewSection() {
       (response) => afterAction(item.id, { ...(response || {}), status: 'testing' }));
 
   // All three lists are views on the one fetch.
-  const lists = useMemo(() => {
+  const { lists, waiting } = useMemo(() => {
     const grouped = { [TAB_REVIEW]: [], [TAB_CONFIRMED]: [], [TAB_REOPEN]: [] };
-    (items || []).forEach((item) => grouped[listOf(item)].push(item));
-    return grouped;
+    let waitingCount = 0;
+    (items || []).forEach((item) => {
+      if (isWaiting(item)) {
+        waitingCount += 1;
+        return;
+      }
+      grouped[listOf(item)].push(item);
+    });
+    return { lists: grouped, waiting: waitingCount };
   }, [items]);
   const shownItems = lists[tab];
   const tabCopy = {
@@ -160,6 +176,9 @@ export default function ReviewSection() {
                       />
                     ))}
                   </>
+                )}
+                {tab === TAB_REVIEW && waiting > 0 && (
+                  <p className="sidebar-section-hint">{L.cognitionWaiting.replace('{n}', String(waiting))}</p>
                 )}
               </div>
             </>

@@ -100,3 +100,29 @@ describe('the cognition review section', () => {
     expect(cognitionApi.list).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('the review round, as the section shows it', () => {
+  it('keeps statements outside the round off the cards and says how many wait', async () => {
+    await open([
+      item({ id: 'a', statement: 's-a', in_round: true }),
+      item({ id: 'b', statement: 's-b', in_round: false }),
+      item({ id: 'c', statement: 's-c', in_round: false }),
+      item({ id: 'k', statement: 's-k', status: 'confirmed' }),
+      item({ id: 'r', statement: 's-r', status: 'rejected' }),
+    ]);
+
+    expect(screen.getByText('s-a')).toBeTruthy();
+    expect(screen.queryByText('s-b')).toBeNull();
+    expect(screen.queryByText('s-c')).toBeNull();
+    expect(screen.getByText(L.cognitionWaiting.replace('{n}', '2'))).toBeTruthy();
+    // Waiting statements are not counted as cards to review.
+    const counts = [...document.querySelectorAll('.cognition-tab-count')];
+    expect(counts.map((n) => n.textContent)).toEqual(['1', '1', '1']);
+  });
+
+  it('shows no waiting note when the whole list is in the round', async () => {
+    await open([item({ id: 'a', statement: 's-a', in_round: true })]);
+    expect(screen.queryByText(L.cognitionWaiting.replace('{n}', '0'))).toBeNull();
+    expect(document.body.textContent).not.toContain(L.cognitionWaiting.split('{n}')[0]);
+  });
+});

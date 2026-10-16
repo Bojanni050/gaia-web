@@ -47,3 +47,17 @@ describe('the epistemic review card', () => {
     expect(screen.queryByText(L.cognitionStatusConfirmed)).toBeNull();
   });
 });
+
+describe('friction for a statement that carries weight', () => {
+  it('does not unlock Confirm for a micro statement with a counter-hypothesis until it is faced', () => {
+    render(card({ item: item({ status: 'proposed', scope: 'micro' }) }));
+    expect(screen.getByLabelText(L.cognitionConfirm).disabled).toBe(true);
+    expect(screen.getByText(L.cognitionImplicationPrompt)).toBeTruthy();
+  });
+
+  it('lets a plain micro statement without a counter-hypothesis be confirmed at once', () => {
+    render(card({ item: item({ status: 'proposed', scope: 'micro', counter_hypothesis: null }) }));
+    expect(screen.getByLabelText(L.cognitionConfirm).disabled).toBe(false);
+    expect(screen.queryByText(L.cognitionImplicationPrompt)).toBeNull();
+  });
+});

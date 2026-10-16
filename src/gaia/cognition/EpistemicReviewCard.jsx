@@ -52,9 +52,15 @@ export default function EpistemicReviewCard({ item, busy, onTest, onReject, onCo
   const evidenceAgainst = Array.isArray(item.evidence_against) ? item.evidence_against : [];
   const hasEvidence = evidenceFor.length > 0 || evidenceAgainst.length > 0;
 
-  // Confirm unlocks only when nothing is in flight AND, for a macro statement,
-  // the person has looked at the objection and answered the implication test.
-  const canConfirm = !busy && (!isMacro || (counterOpen && implication === 'establish'));
+  // Weight reaches the person two ways: a macro statement, or a micro one that
+  // carries a counter-hypothesis (the server's review round lets both through).
+  // Either way Confirm is never a single click.
+  const needsFriction = isMacro || hasCounter;
+
+  // Confirm unlocks only when nothing is in flight AND, for a statement that
+  // needs friction, the person has looked at the objection and answered the
+  // implication test.
+  const canConfirm = !busy && (!needsFriction || (counterOpen && implication === 'establish'));
   const canReopen = !busy && reopenReason.trim().length > 0;
 
   const implicationText = (key) => ({
@@ -70,7 +76,7 @@ export default function EpistemicReviewCard({ item, busy, onTest, onReject, onCo
     const statement = nuancing && normalized && normalized !== item.statement ? normalized : undefined;
     // A macro confirmation always carries a rationale (server-side friction
     // too): the implication the person consciously chose.
-    const rationale = isMacro ? implicationText(implication) : undefined;
+    const rationale = needsFriction ? implicationText(implication) : undefined;
     onConfirm(item, { rationale, statement });
   };
 
@@ -172,7 +178,7 @@ export default function EpistemicReviewCard({ item, busy, onTest, onReject, onCo
             </div>
           )}
 
-          {isMacro && !isConfirmed && (
+          {needsFriction && !isConfirmed && (
             <div className="cognition-implication">
               <span className="cognition-implication-prompt">{L.cognitionImplicationPrompt}</span>
               {IMPLICATIONS.map((key) => (
