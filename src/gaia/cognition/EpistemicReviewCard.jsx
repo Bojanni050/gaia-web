@@ -32,6 +32,10 @@ const STATUS_LABEL = {
   corroborated: () => L.cognitionStatusCorroborated,
   confirmed: () => L.cognitionStatusConfirmed,
   rejected: () => L.cognitionStatusRejected,
+  // v1.3 — a lapsed statement is not a false one: it never gathered evidence
+  // and nothing moved it for the term. It belongs with what was let go, and a
+  // person can still confirm or reject it by hand.
+  expired: () => L.cognitionStatusExpired,
 };
 
 const IMPLICATIONS = ['establish', 'counter', 'soft'];
