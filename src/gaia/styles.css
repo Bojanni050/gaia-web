@@ -704,3 +704,99 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .kairos-live-dot.connected, .kairos-live-dot.connecting { animation: none; }
 }
+
+/* Research in the background — a quiet line while it runs, and a real question
+   when a run parks on a command. The findings themselves are ordinary
+   conversation messages; only the state of the work lives here. */
+.research-status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 44rem;
+  margin: 0 auto 8px;
+}
+
+.research-quiet {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px;
+  font-size: 0.82rem;
+  color: var(--muted-foreground, #9a9a9a);
+}
+
+.research-elsewhere {
+  align-self: flex-start;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border, #2a2a2a);
+  background: transparent;
+  color: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.research-question {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border, #2a2a2a);
+  border-radius: 12px;
+  background: var(--card, rgba(255, 255, 255, 0.02));
+}
+
+.research-question-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.research-question-why {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted-foreground, #9a9a9a);
+}
+
+.research-command {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  font-size: 0.82rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.research-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.research-choice {
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #2a2a2a);
+  background: transparent;
+  color: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.research-choice:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.research-choice:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.research-error {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #e08888;
+}

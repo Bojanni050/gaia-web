@@ -463,3 +463,28 @@ export function subscribeEpisodes(handler, { onStatus } = {}) {
     if (source) source.close();
   };
 }
+
+// ---------------------------------------------------------------------------
+// Research jobs
+//
+// The deep investigations Gaia runs at Hermes. A research turn is answered
+// immediately; the findings arrive later and the server writes them into the
+// conversation itself, so this surface only carries the queue, the
+// acknowledgement and the answer to a run that parked on a command.
+// contract.js declares the same three shapes for the record.
+// ---------------------------------------------------------------------------
+export const researchApi = {
+  queued: async () => {
+    const response = await request('get', '/research/jobs');
+    const list = (value) => (Array.isArray(value) ? value : []);
+    return {
+      running: list(response && response.running),
+      awaiting: list(response && response.awaiting),
+      finished: list(response && response.finished),
+    };
+  },
+
+  ack: (id) => request('post', `/research/jobs/${encodeURIComponent(id)}/ack`),
+
+  approval: (id, choice) => request('post', `/research/jobs/${encodeURIComponent(id)}/approval`, { choice }),
+};

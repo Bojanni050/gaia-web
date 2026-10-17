@@ -6,9 +6,10 @@ import Conversation from './conversation/Conversation';
 import SettingsPanel from './settings/SettingsPanel';
 import LibraryPanel from './library/LibraryPanel';
 import AboutPanel from './settings/AboutPanel';
-import { serverApi, presenceApi } from './server/api';
+import { serverApi, presenceApi, researchApi, historyApi } from './server/api';
 import { useConversation } from './state/useConversation';
 import { useServerStatus } from './state/useServerStatus';
+import { useResearchJobs } from './state/useResearchJobs';
 import { L } from './lib/lexicon';
 
 /**
@@ -30,6 +31,24 @@ export default function GaiaDesktop() {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [lang, setLang] = useState(localStorage.getItem('gaia.lang') || 'nl');
   const conversation = useConversation(serverApi);
+
+  // Background research — the deep investigations Gaia put out at Hermes. A
+  // research turn is answered immediately and the server writes the findings
+  // into the conversation itself, so the client learns about them by asking.
+  // When one lands: read that conversation back, then acknowledge the job so
+  // the server stops offering it. A failure here leaves the job in the queue
+  // and the next poll tries again.
+  const research = useResearchJobs(researchApi, {
+    onFinished: async (job) => {
+      try {
+        const { messages } = await historyApi.get(job.conversationId);
+        conversation.hydrateThread(job.conversationId, messages);
+        await research.ack(job.id);
+      } catch (_) {
+        // The queue keeps it; the next poll delivers it again.
+      }
+    },
+  });
 
   useEffect(() => {
     presenceApi.get().catch(() => {});
@@ -123,6 +142,8 @@ export default function GaiaDesktop() {
           health={{ status: status === 'offline' ? 'unreachable' : 'ok' }}
           presenceState={presenceState}
           whisper={whisper}
+          research={research}
+          onOpenResearchConversation={(id) => conversation.openThread(id)}
           onSend={conversation.send}
           onRetry={conversation.retry}
           // useConversation.js does not implement edit/delete/regenerate/stop

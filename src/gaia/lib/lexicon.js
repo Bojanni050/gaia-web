@@ -16,6 +16,17 @@ export const LANGUAGES = {
     // Conversation actions and status
     healthWhisper: 'Ik kan mijn denkmotor momenteel niet bereiken. Neem je tijd — ik ben er als je klaar bent om het opnieuw te proberen.',
     retry: 'Opnieuw proberen',
+
+    // Research in the background (work Gaia put out at Hermes)
+    researchRunningOne: 'Er loopt een onderzoek op de achtergrond.',
+    researchRunningMany: 'Er lopen {count} onderzoeken op de achtergrond.',
+    researchElsewhere: 'Een onderzoek is klaar in een ander gesprek.',
+    researchQuestionTitle: 'Een onderzoek wacht op je beslissing.',
+    researchAnswerFailed: 'De beslissing kon niet worden doorgegeven.',
+    researchChoice_once: 'Eenmalig',
+    researchChoice_session: 'Deze sessie',
+    researchChoice_always: 'Altijd',
+    researchChoice_deny: 'Weigeren',
     
     // Sidebar footer
     footLine1: 'Een levenslange persoonlijke intelligentie,',
@@ -185,6 +196,17 @@ export const LANGUAGES = {
     // Conversation actions and status
     healthWhisper: "I can't reach my reason engine right now. Take your time — I'm here when you're ready to try again.",
     retry: 'Retry',
+
+    // Research in the background (work Gaia put out at Hermes)
+    researchRunningOne: 'A research task is running in the background.',
+    researchRunningMany: '{count} research tasks are running in the background.',
+    researchElsewhere: 'A research task finished in another conversation.',
+    researchQuestionTitle: 'A research task is waiting for your decision.',
+    researchAnswerFailed: 'The decision could not be passed on.',
+    researchChoice_once: 'Once',
+    researchChoice_session: 'This session',
+    researchChoice_always: 'Always',
+    researchChoice_deny: 'Deny',
 
     // Sidebar footer
     footLine1: 'A lifelong personal intelligence,',

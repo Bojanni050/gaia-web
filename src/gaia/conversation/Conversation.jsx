@@ -5,6 +5,7 @@ import Composer from './Composer';
 import { Presence, PresenceOrb } from '../../components/Presence';
 import { getGreeting } from '../lib/greeting';
 import { L } from '../lib/lexicon';
+import ResearchStatus from './ResearchStatus';
 
 /**
  * How close to the tail still counts as "at the bottom" (px). Small enough that
@@ -23,7 +24,9 @@ export default function Conversation({
   onEdit,
   onDelete,
   onRegenerate,
-  onRetry
+  onRetry,
+  research = null,
+  onOpenResearchConversation
 }) {
   const scrollRef = useRef(null);
   // Whether the view follows the thread's tail. Only the person's own scrolling
@@ -150,6 +153,17 @@ export default function Conversation({
           )}
         </div>
       </div>
+
+      {research && (
+        <ResearchStatus
+          running={research.running}
+          awaiting={research.awaiting}
+          finished={research.finished}
+          activeConversationId={conversationId}
+          onAnswer={research.answer}
+          onOpen={onOpenResearchConversation}
+        />
+      )}
 
       {health && health.status === 'unreachable' && (
         <div className="health-whisper" data-testid="health-whisper" role="status">

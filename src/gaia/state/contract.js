@@ -78,3 +78,40 @@ export function buildCognitionConfirmRequest(id, { supersedes, rationale, statem
   if (Object.keys(body).length > 0) request.body = body;
   return request;
 }
+
+// ---------------------------------------------------------------------------
+// Research jobs — the deep, sourced investigations Gaia puts out at Hermes.
+//
+// A research turn is answered immediately and the findings arrive later: the
+// server writes them into the conversation and the client reads the queue
+// (GET /research/jobs) rather than waiting on a turn. Two different weights
+// live in that queue — work in progress, and a run that parked on a command
+// and needs the person's decision. Server-side: researchRoutes.js.
+// ---------------------------------------------------------------------------
+
+/** The queue: what is running, what parked, and what finished unread. */
+export function buildResearchJobsRequest() {
+  return { method: 'get', path: '/research/jobs' };
+}
+
+/** Read a finished job's findings out of the queue for good. */
+export function buildResearchAckRequest(id) {
+  return { method: 'post', path: `/research/jobs/${encodeURIComponent(id)}/ack` };
+}
+
+/** Answer a run that parked on a command, with one of ITS OWN choices. */
+export function buildResearchApprovalRequest(id, choice) {
+  const request = { method: 'post', path: `/research/jobs/${encodeURIComponent(id)}/approval` };
+  if (choice) request.body = { choice };
+  return request;
+}
+
+/** The three buckets the queue comes in. */
+export function parseResearchJobs(response) {
+  const list = (value) => (Array.isArray(value) ? value : []);
+  return {
+    running: list(response && response.running),
+    awaiting: list(response && response.awaiting),
+    finished: list(response && response.finished),
+  };
+}
