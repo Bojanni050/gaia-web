@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Copy, Check, Edit3, Trash2, RotateCw, File, Image } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Copy, Check, Edit3, Trash2, RotateCw, File, Image, Undo2 } from 'lucide-react';
 import Markdown from './Markdown';
 import { parseSegments } from '../lib/artifactParser';
 import { L } from '../lib/lexicon';
@@ -90,11 +90,21 @@ function AssistantBody({ content, reasoning, streaming }) {
   );
 }
 
-export default function MessageView({ message, streaming, onEdit, onDelete, onRegenerate, onRetry }) {
+export default function MessageView({ message, streaming, onEdit, onDelete, onRegenerate, onRetry, onRetract }) {
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.content);
+  // Taking a memory back: the person's own route to something Gaia said that
+  // turned out not to be true. They point at the sentence in her reply, and
+  // that sentence is what the server matches against memory — see
+  // server/api.js's memoryApi and Gaia Cloud's POST /memory/retract.
+  const [retractOpen, setRetractOpen] = useState(false);
+  const [quote, setQuote] = useState('');
+  const [correction, setCorrection] = useState('');
+  const [answer, setAnswer] = useState(null);
+  const [working, setWorking] = useState(false);
+  const bodyRef = useRef(null);
 
   const copy = () => {
     navigator.clipboard.writeText(message.content);
@@ -114,11 +124,41 @@ export default function MessageView({ message, streaming, onEdit, onDelete, onRe
     setIsEditing(false);
   };
 
+  // Opens the panel with whatever sentence they had selected in her reply, so
+  // the common case is one click and one press of the button.
+  const openRetract = () => {
+    const selection = typeof window !== 'undefined' && window.getSelection ? window.getSelection() : null;
+    const anchor = selection && selection.anchorNode;
+    const inside = anchor && bodyRef.current && bodyRef.current.contains(anchor.nodeType === 3 ? anchor.parentNode : anchor);
+    const selected = inside && selection.toString ? selection.toString().replace(/\s+/g, ' ').trim() : '';
+    setQuote(selected);
+    setAnswer(null);
+    setRetractOpen(true);
+  };
+
+  const sendRetraction = async (text) => {
+    const sentence = String(text != null ? text : quote).replace(/\s+/g, ' ').trim();
+    // What is true instead is their own words too: collapsed like the quote, so
+    // a stray newline never becomes part of what she is asked to keep.
+    const truer = String(correction || '').replace(/\s+/g, ' ').trim();
+    if (!sentence || working) return;
+    setWorking(true);
+    try {
+      const result = await onRetract(sentence, truer);
+      setAnswer(result);
+      setRetractOpen(false);
+    } catch (_) {
+      setAnswer({ status: 'failed', message: L.retractFailed });
+    } finally {
+      setWorking(false);
+    }
+  };
+
   return (
     <div className={`message ${isUser ? 'user' : 'assistant'}`} data-testid={`message-${message.role}`}>
       <div className="msg-inner">
         {!isUser && <div className="msg-author">Gaia</div>}
-        <div className="msg-body">
+        <div className="msg-body" ref={bodyRef}>
           {isUser ? (
             isEditing ? (
               <div className="edit-textarea-wrap" data-testid="edit-textarea-wrap">
@@ -177,7 +217,78 @@ export default function MessageView({ message, streaming, onEdit, onDelete, onRe
                 <button className="msg-action" onClick={() => onDelete(message.id)} data-testid="message-delete-btn" aria-label="Delete">
                   <Trash2 size={13} />
                 </button>
+                {onRetract && (
+                  <button
+                    className="msg-action"
+                    onClick={openRetract}
+                    // Keeping the selection is what makes one click enough:
+                    // mousedown would clear it before the click lands.
+                    onMouseDown={(e) => e.preventDefault()}
+                    data-testid="message-retract-btn"
+                    aria-label={L.retract}
+                  >
+                    <Undo2 size={13} />
+                    <span>{L.retract}</span>
+                  </button>
+                )}
               </>
+            )}
+          </div>
+        )}
+
+        {retractOpen && (
+          <div className="retract-panel" data-testid="message-retract-panel">
+            <p className="retract-hint">{L.retractHint}</p>
+            <label className="retract-field">
+              <span>{L.retractQuoteLabel}</span>
+              <input
+                value={quote}
+                onChange={(e) => setQuote(e.target.value)}
+                data-testid="retract-quote-input"
+              />
+            </label>
+            <label className="retract-field">
+              <span>{L.retractCorrectionLabel}</span>
+              <input
+                value={correction}
+                onChange={(e) => setCorrection(e.target.value)}
+                data-testid="retract-correction-input"
+              />
+            </label>
+            <div className="retract-actions">
+              <button
+                className="msg-action"
+                onClick={() => sendRetraction()}
+                disabled={working || !quote.trim()}
+                data-testid="retract-send"
+              >
+                {working ? L.retractWorking : L.retractSend}
+              </button>
+              <button className="msg-action" onClick={() => setRetractOpen(false)} data-testid="retract-cancel">
+                {L.retractCancel}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {answer && (
+          <div className="retract-answer" role="status" data-testid="retract-answer">
+            <p>{answer.message}</p>
+            {answer.status === 'ambiguous' && Array.isArray(answer.candidates) && (
+              <div className="retract-candidates">
+                <span>{L.retractPick}</span>
+                {answer.candidates.map((candidate, index) => (
+                  <button
+                    key={`${candidate.bank}-${candidate.id}-${index}`}
+                    className="msg-action"
+                    onClick={() => sendRetraction(candidate.text)}
+                    disabled={working}
+                    data-testid="retract-candidate"
+                  >
+                    {candidate.text}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
         )}

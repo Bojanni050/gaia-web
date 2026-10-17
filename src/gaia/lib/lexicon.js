@@ -16,6 +16,15 @@ export const LANGUAGES = {
     // Conversation actions and status
     healthWhisper: 'Ik kan mijn denkmotor momenteel niet bereiken. Neem je tijd — ik ben er als je klaar bent om het opnieuw te proberen.',
     retry: 'Opnieuw proberen',
+    retract: 'Dit klopt niet',
+    retractHint: 'Wijs in mijn antwoord de zin aan die niet klopt — dan staat die hieronder alvast klaar. Zeg er gerust bij wat wél waar is.',
+    retractQuoteLabel: 'Wat er niet klopt',
+    retractCorrectionLabel: 'Wat wél waar is (mag leeg blijven)',
+    retractSend: 'Terugnemen',
+    retractCancel: 'Annuleren',
+    retractWorking: 'Terugnemen…',
+    retractFailed: 'Dat kon ik nu niet terugnemen. Probeer het straks opnieuw.',
+    retractPick: 'Welke van deze bedoel je?',
 
     // Research in the background (work Gaia put out at Hermes)
     researchRunningOne: 'Er loopt een onderzoek op de achtergrond.',
@@ -197,6 +206,15 @@ export const LANGUAGES = {
     // Conversation actions and status
     healthWhisper: "I can't reach my reason engine right now. Take your time — I'm here when you're ready to try again.",
     retry: 'Retry',
+    retract: 'That is not right',
+    retractHint: 'Point at the sentence in my reply that is not right — it will be here ready for you. Say what is true instead if you like.',
+    retractQuoteLabel: 'What is not right',
+    retractCorrectionLabel: 'What is true instead (can stay empty)',
+    retractSend: 'Take it back',
+    retractCancel: 'Cancel',
+    retractWorking: 'Taking it back…',
+    retractFailed: 'I could not take that back just now. Try again in a moment.',
+    retractPick: 'Which of these do you mean?',
 
     // Research in the background (work Gaia put out at Hermes)
     researchRunningOne: 'A research task is running in the background.',

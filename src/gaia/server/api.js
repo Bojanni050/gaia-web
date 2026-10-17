@@ -394,6 +394,20 @@ export const cognitionApi = {
 };
 
 /**
+ * Memory retraction — taking back something Gaia remembered that turned out not
+ * to be true (`POST /memory/retract` on Gaia Cloud). The person points at the
+ * sentence in her reply, and that sentence is the `quote` the server matches
+ * against memory; `correction` is optionally what is true instead. Every
+ * outcome is an answer rather than an error: `status` is 'retracted',
+ * 'ambiguous' (with `candidates` to choose from) or 'not_found', and `message`
+ * is the wording to show. This route exists so undoing her statement never
+ * depends on Gaia herself deciding to — see reasoning/memoryRetraction.js.
+ */
+export const memoryApi = {
+  retract: (quote, correction) => request('post', '/memory/retract', correction ? { quote, correction } : { quote }),
+};
+
+/**
  * Kairos episodes — the narrative spans Kairos synthesized from raw
  * observations (`/kairos/*` on Gaia Cloud). Each is an interpretation with
  * `sources` pointing back to the raw observations; `evidence` walks that

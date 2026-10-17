@@ -6,7 +6,7 @@ import Conversation from './conversation/Conversation';
 import SettingsPanel from './settings/SettingsPanel';
 import LibraryPanel from './library/LibraryPanel';
 import AboutPanel from './settings/AboutPanel';
-import { serverApi, presenceApi, researchApi, historyApi } from './server/api';
+import { serverApi, presenceApi, researchApi, historyApi, memoryApi } from './server/api';
 import { useConversation } from './state/useConversation';
 import { useServerStatus } from './state/useServerStatus';
 import { useResearchJobs } from './state/useResearchJobs';
@@ -84,6 +84,10 @@ export default function GaiaDesktop() {
     presenceApi.setQuiet(next).catch(() => {});
   }, []);
 
+  // Taking a memory back is the person's own act, deliberately not something
+  // Gaia has to decide to call herself — see server/api.js's memoryApi.
+  const handleRetract = useCallback((quote, correction) => memoryApi.retract(quote, correction), []);
+
   // The orb rests quiet by default; Gaia is present, not performative.
   const presenceState = 'quiet';
   const whisper =
@@ -153,6 +157,7 @@ export default function GaiaDesktop() {
           onEdit={() => {}}
           onDelete={() => {}}
           onRegenerate={() => {}}
+          onRetract={handleRetract}
           onStop={() => {}}
         />
       </main>

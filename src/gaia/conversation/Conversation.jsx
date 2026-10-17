@@ -25,6 +25,7 @@ export default function Conversation({
   onDelete,
   onRegenerate,
   onRetry,
+  onRetract,
   research = null,
   onOpenResearchConversation
 }) {
@@ -131,6 +132,7 @@ export default function Conversation({
                   onDelete={onDelete}
                   onRegenerate={onRegenerate}
                   onRetry={onRetry}
+                  onRetract={onRetract}
                 />
               ))}
               {stream.active && stream.content && (
