@@ -27,11 +27,19 @@ function buildTurnBody(messages, conversationId) {
 
 /**
  * Build body for a streaming turn: POST /conversation/turn's flat JSON
- * body ({ messages, conversationId?, attachmentIds? }) — gaia-api has no
- * {status,body} envelope, so there is nothing to wrap or parse here.
+ * body ({ messages, conversationId?, attachmentIds?, stream: true }) —
+ * gaia-api has no {status,body} envelope, so there is nothing to wrap or
+ * parse here.
+ *
+ * `stream: true` is what makes the server answer as SSE instead of one
+ * JSON blob, and it is also what arms the stop button: only on that branch
+ * does the server watch the connection close (server.js's res.on('close')
+ * → turnAbort), so aborting the request is what actually stops her
+ * generating. Without the flag the connection is not watched and a stop
+ * would only stop the reading.
  */
 export function buildStreamTurnBody(messages, conversationId) {
-  return buildTurnBody(messages, conversationId);
+  return { ...buildTurnBody(messages, conversationId), stream: true };
 }
 
 // --- cognition review (gaia/cognition/ReviewSection.jsx) --------------------

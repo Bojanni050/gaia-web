@@ -174,6 +174,7 @@ export const LANGUAGES = {
     settingsClose: 'Sluiten',
     deleteConversation: 'Gesprek verwijderen',
     send: 'Versturen',
+    stop: 'Stoppen',
 
     // Turn failure phrases
     turnNoServer: 'Gaia is nog niet verbonden met haar server. Je kunt er een toevoegen in de instellingen.',
@@ -361,6 +362,7 @@ export const LANGUAGES = {
     settingsClose: 'Close',
     deleteConversation: 'Delete conversation',
     send: 'Send',
+    stop: 'Stop',
 
     // Turn failure phrases
     turnNoServer: 'Gaia is not connected to her server yet. You can add one in settings.',

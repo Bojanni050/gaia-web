@@ -138,7 +138,22 @@ export const serverApi = {
     };
   },
 
-  streamTurn: async (body, onDelta) => {
+  /**
+   * One turn, streamed. The body carries `stream: true` (contract.js), so the
+   * server answers as SSE: OpenAI-compatible content frames
+   * (`choices[0].delta.content` / `.reasoning_content`), extension frames that
+   * carry a `type` instead (step, research, memory, desktop, title — progress,
+   * never speech, so they go to `onEvent` and never into the reply), and a
+   * closing `data: [DONE]`. An `error` frame is the stream's own way of failing
+   * (the server ends without [DONE]), so it is thrown here.
+   *
+   * `options.signal` is the stop button. Aborting the fetch closes the
+   * connection, which is exactly what Gaia Cloud watches for (server.js's
+   * res.on('close') → turnAbort): she stops generating and the turn is saved
+   * as interrupted. Only aborting would be a lie — the server would keep
+   * working for nobody and the reply would land in the transcript anyway.
+   */
+  streamTurn: async (body, onDelta, { signal, onEvent } = {}) => {
     if (!apiBaseUrl) {
       throw new Error('No Gaia Server configured');
     }
@@ -146,8 +161,9 @@ export const serverApi = {
     const url = `${apiBaseUrl}/conversation/turn`;
     const response = await fetch(url, {
       method: 'POST',
-      headers: getHeaders(),
+      headers: { ...getHeaders(), Accept: 'text/event-stream' },
       body: JSON.stringify(body),
+      signal,
     });
 
     if (!response.ok) {
@@ -158,23 +174,57 @@ export const serverApi = {
       throw error;
     }
 
-    // For now, we'll simulate streaming by accumulating the response
-    // In a real implementation, this would use SSE or similar
-    const fullResponse = await response.json();
-    // server.js's own documented contract: POST /conversation/turn ->
-    // { reply: string }, flat — not { body: { reply } }. This mismatch
-    // meant every send produced an empty fullText, so receivedAny/fullReply
-    // in useConversation.js's runTurn were always falsy and every turn
-    // failed with "Gaia Server returned no reply" regardless of what Gaia
-    // actually answered.
-    const fullText = fullResponse.reply || '';
-    
-    // Split into chunks for simulation
-    const chunkSize = 50;
-    for (let i = 0; i < fullText.length; i += chunkSize) {
-      const chunk = fullText.slice(i, i + chunkSize);
-      onDelta({ content: chunk, reasoningContent: '' });
-      await new Promise((resolve) => setTimeout(resolve, 10));
+    const contentType = response.headers.get('content-type') || '';
+    // Not everything that answers is a stream: a turn that fails before its
+    // first frame comes back as one JSON error, and a server without the
+    // streaming branch answers { reply }. Both are still a reply (or a
+    // failure), so read them as one piece.
+    if (!/text\/event-stream/.test(contentType) || !response.body) {
+      const payload = await response.json();
+      const text = payload.reply || '';
+      if (text) onDelta({ content: text, reasoningContent: '' });
+      return text;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let fullText = '';
+
+    const handleFrame = (payload) => {
+      if (!payload || payload === '[DONE]') return;
+      let frame;
+      try {
+        frame = JSON.parse(payload);
+      } catch (e) {
+        return;
+      }
+      const delta = frame.choices && frame.choices[0] && frame.choices[0].delta;
+      if (delta && (delta.content || delta.reasoning_content)) {
+        if (delta.content) fullText += delta.content;
+        onDelta({ content: delta.content || '', reasoningContent: delta.reasoning_content || '' });
+        return;
+      }
+      if (frame.type === 'error') {
+        throw new Error(frame.message || 'the turn failed');
+      }
+      if (frame.type && onEvent) onEvent(frame);
+    };
+
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let split = buffer.indexOf('\n\n');
+      while (split !== -1) {
+        const block = buffer.slice(0, split);
+        buffer = buffer.slice(split + 2);
+        for (const line of block.split('\n')) {
+          if (!line.startsWith('data:')) continue;
+          handleFrame(line.slice(5).trim());
+        }
+        split = buffer.indexOf('\n\n');
+      }
     }
 
     return fullText;

@@ -150,15 +150,16 @@ export default function GaiaDesktop() {
           onOpenResearchConversation={(id) => conversation.openThread(id)}
           onSend={conversation.send}
           onRetry={conversation.retry}
-          // useConversation.js does not implement edit/delete/regenerate/stop
-          // yet — MessageView/Composer still render these controls, so they
-          // need a safe no-op rather than crashing on click. Wiring real
-          // behavior for these is a separate, larger change.
+          // useConversation.js does not implement edit/delete/regenerate yet
+          // — MessageView still renders those controls, so they need a safe
+          // no-op rather than crashing on click. Writing real behavior for
+          // them is a separate, larger change. Stop does work: it aborts the
+          // running turn, which the server watches for (see cancel).
           onEdit={() => {}}
           onDelete={() => {}}
           onRegenerate={() => {}}
           onRetract={handleRetract}
-          onStop={() => {}}
+          onStop={conversation.cancel}
         />
       </main>
 

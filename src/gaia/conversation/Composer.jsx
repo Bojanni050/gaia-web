@@ -166,7 +166,7 @@ export default function Composer({ onSend, onStop, streaming, onDraftChange }) {
         />
 
         {streaming ? (
-          <button className="composer-send stop" onClick={onStop} data-testid="stop-btn" aria-label="Stop">
+          <button className="composer-send stop" onClick={onStop} data-testid="stop-btn" aria-label={L.stop} title={L.stop}>
             <Square size={16} fill="currentColor" />
           </button>
         ) : (

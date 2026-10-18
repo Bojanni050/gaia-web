@@ -523,6 +523,16 @@ body {
 }
 .composer-send:hover:not(:disabled) { background: #D9B27A; }
 .composer-send:disabled { opacity: 0.3; cursor: default; }
+/* The stop state of the same button: a square in the soft accent with a thin
+   ring instead of the solid accent arrow, so it reads as intervening rather
+   than as the action. Same size as the send button, so the row never shifts
+   when a turn starts or ends. */
+.composer-send.stop {
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+.composer-send.stop:hover { background: rgba(203, 163, 106, 0.22); }
 
 /* ---------------------------------------------------------------- presence */
 .presence { display: inline-flex; align-items: center; gap: 10px; }

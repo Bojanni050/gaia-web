@@ -10,7 +10,7 @@
  * exists, never changes what was said, and its own failure can never
  * affect the turn (see runTurn).
  */
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { buildStreamTurnBody } from './contract';
 import { phraseTurnError } from './phrases';
 import { speechApi } from '../server/api';
@@ -29,6 +29,12 @@ export function useConversation(server) {
   // can swap the thinking indicator for the live-updating message at the
   // right moment, not a beat too early or too late.
   const [streaming, setStreaming] = useState(false);
+
+  // The turn that is running right now, if any: the AbortController that can
+  // end it and the flag that keeps its leftovers out of the thread afterwards.
+  // A ref, not state — cancelling must be able to reach the in-flight run
+  // without re-rendering anything first.
+  const currentTurn = useRef(null);
 
   const active = threads.find((t) => t.id === activeId) || null;
 
@@ -89,6 +95,11 @@ export function useConversation(server) {
       // fresh from `prev` each time, making both updaters idempotent.
       let receivedAny = false;
 
+      // This turn, reachable for cancel() for as long as it runs.
+      const controller = new AbortController();
+      const turn = { cancelled: false, controller };
+      currentTurn.current = turn;
+
       let fullReasoning = '';
       const appendToAssistant = (text) => {
         if (!text) return;
@@ -116,10 +127,19 @@ export function useConversation(server) {
         // saves/appends the transcript under it (conversationStore.js),
         // which is what lets History reopen this same thread later.
         const body = buildStreamTurnBody(history, threadId);
-        const fullReply = await server.streamTurn(body, (delta) => {
-          if (delta.reasoningContent) fullReasoning += delta.reasoningContent;
-          appendToAssistant(delta.content);
-        });
+        const fullReply = await server.streamTurn(
+          body,
+          (delta) => {
+            // Deltas that arrive after the stop button belong to a turn the
+            // person already ended: dropping them is what makes stopping feel
+            // like stopping instead of the text creeping on for a beat.
+            if (turn.cancelled) return;
+            if (delta.reasoningContent) fullReasoning += delta.reasoningContent;
+            appendToAssistant(delta.content);
+          },
+          { signal: controller.signal }
+        );
+        if (turn.cancelled) return;
         // A turn that streamed no content deltas at all (empty reply) is a
         // server-contract violation, same as the old parseReply's check —
         // surface it as a failure rather than leaving a blank bubble.
@@ -158,6 +178,10 @@ export function useConversation(server) {
             .catch(() => {});
         }
       } catch (error) {
+        // A stopped turn is not a failed one: the person ended it, so the
+        // thread keeps the text that had already arrived and says nothing
+        // about an error.
+        if (turn.cancelled) return;
         const phrase = phraseTurnError(error);
         setThreads((prev) =>
           prev.map((t) => {
@@ -175,6 +199,7 @@ export function useConversation(server) {
           })
         );
       } finally {
+        if (currentTurn.current === turn) currentTurn.current = null;
         setBusy(false);
         setStreaming(false);
       }
@@ -233,5 +258,28 @@ export function useConversation(server) {
     [threads, activeId, busy, runTurn]
   );
 
-  return { threads, active, activeId, busy, streaming, newThread, openThread, deleteThread, hydrateThread, send, retry };
+  /**
+   * Stop the turn that is running: abort the request, which closes the
+   * connection, which is what Gaia Cloud watches for (server.js's
+   * res.on('close') → turnAbort) — so she really stops generating and the
+   * turn is saved as interrupted, exactly like the desktop's stop button.
+   * Nothing is shown as an error: stopping is the person's choice, not a
+   * failure. Returns whether there was a turn to stop.
+   */
+  const cancel = useCallback(() => {
+    const turn = currentTurn.current;
+    if (!turn || turn.cancelled) return false;
+    turn.cancelled = true;
+    currentTurn.current = null;
+    try {
+      turn.controller.abort();
+    } catch (e) {
+      // An abort that finds nothing to abort is still a stopped turn.
+    }
+    setBusy(false);
+    setStreaming(false);
+    return true;
+  }, []);
+
+  return { threads, active, activeId, busy, streaming, newThread, openThread, deleteThread, hydrateThread, send, retry, cancel };
 }
