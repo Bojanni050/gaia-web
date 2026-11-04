@@ -4,29 +4,57 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
-    # Same-origin proxy for Gaia Cloud. gaia-api sends no CORS headers, so
-    # the browser calling it cross-origin is always blocked — routing
-    # through this same origin isn't a style choice, it's the only way this
-    # works from a real browser.
+    # =========================================================================
+    # Same-origin proxy for Gaia Cloud, on an explicit ALLOW-LIST.
+    # =========================================================================
     #
-    # Retired here (docs/web-migration-plan.md's Phase C, verified live in
-    # production before removal — a real turn's network trace showed only
-    # /api/gaia/ calls, zero to any of these): the direct /api/hermes/
-    # (gaia-hermes-proxy), /api/hindsight/, and /api/cognition/ routes.
-    # Nothing in this client calls Hermes, Hindsight, or the cognition
-    # service directly anymore — gaia-api does all of that server-side.
+    # gaia-api sends no CORS headers, so a browser calling it cross-origin is
+    # always blocked — routing through this same origin is the only way the web
+    # client can reach it. This proxy injects gaia-api's Bearer token, and this
+    # server is reachable from the open internet. Therefore:
+    #
+    #   EVERY PATH LISTED BELOW IS REACHABLE BY ANYONE WHO CAN REACH THIS HOST.
+    #
+    # That is why this is an allow-list rather than a single /api/gaia/
+    # pass-through. An earlier version proxied the whole /api/gaia/ prefix,
+    # which put the entire Gaia API on the public internet — including /admin
+    # (operator-only), /cognition/* beyond the review surface, and every /memory
+    # route — and made `POST /conversation/turn` callable by a stranger, which
+    # writes into Hindsight and Cognition through the deferred-cognition pass.
+    #
+    # The list is derived from `src/gaia/server/api.js` — this client's only API
+    # module. Nothing else belongs here. If the client grows a new endpoint, add
+    # it below: the default for anything unlisted is 404, so forgetting a route
+    # breaks one feature instead of exposing the whole API.
+    #
+    # Deliberately NOT proxied, with reasons:
+    #   /admin/*          operator-only surface (provider config, logs, roles)
+    #   /soul             identity version; no web client call site
+    #   /speech*          STT/TTS — no web client call site
+    #   /eleos/*          Gaia-initiated check-ins — desktop/API concern
+    #   /desktop/*        Desktop Commander — the web client has no executor
+    #   /memory/forget    hard-delete path; the web client offers /memory/retract
+    #   /cognition/*      everything except /cognition/hypotheses, which is the
+    #                     GaiaChat review surface this client does use
+    #
+    # The 10-line proxy block is intentionally repeated per location instead of
+    # factored into a snippet: a security boundary should be readable as one
+    # complete file, and an included snippet that depends on the base image's
+    # envsubst directory behaviour is a worse trade than repetition. The blocks
+    # must stay identical — change one, change all.
+    #
+    # ${GAIA_API_HOST} and ${GAIA_API_TOKEN_WEB} are substituted from the
+    # container's environment at startup by the official nginx image's entrypoint
+    # (this file is a template — see Dockerfile/deploy.yml). nginx's own bare
+    # $-prefixed runtime variables below are untouched by that pass. That pass
+    # does NOT understand bash-style ${VAR:-default}, so the plain
+    # ${GAIA_API_HOST} needs a real value supplied at container start.
+    # =========================================================================
 
-    # gaia-api is Tailscale-bound like Hindsight/cognition — reachable from
-    # any container on this host — but unlike those two it requires Bearer
-    # auth. The browser never holds the token: this proxy injects it,
-    # exactly like gaia-hermes-proxy injects HERMES_AUTH_TOKEN toward
-    # hermes-agent (docs/web-migration-plan.md §5's chosen auth model).
-    # ${GAIA_API_TOKEN_WEB} is substituted from the container's environment
-    # at startup (this file is a template — see Dockerfile/deploy.yml);
-    # nginx's own $-prefixed runtime variables below (no curly braces) are
-    # untouched by that substitution.
-    location /api/gaia/ {
-        proxy_pass http://${GAIA_API_HOST}:8891/;
+    # --- exact endpoints -----------------------------------------------------
+
+    location = /api/gaia/health {
+        proxy_pass http://${GAIA_API_HOST}:8891/health;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -36,6 +64,134 @@ server {
         proxy_buffering off;
         proxy_request_buffering off;
         proxy_read_timeout 3600s;
+    }
+
+    # The web client asks for /version; gaia-api mounts its version router at
+    # /api (server.js: `app.use('/api', createVersionRouter())`). The old
+    # pass-through proxy forwarded /version verbatim, which gaia-api does not
+    # serve — this path has returned 404 in production since the web migration.
+    # Mapped correctly here, which also repairs the client's build/version view.
+    location = /api/gaia/version {
+        proxy_pass http://${GAIA_API_HOST}:8891/api/version;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Authorization "Bearer ${GAIA_API_TOKEN_WEB}";
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_read_timeout 3600s;
+    }
+
+    location = /api/gaia/conversation/turn {
+        proxy_pass http://${GAIA_API_HOST}:8891/conversation/turn;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Authorization "Bearer ${GAIA_API_TOKEN_WEB}";
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_read_timeout 3600s;
+    }
+
+    # The only /memory route the web client calls — taking a memory back.
+    location = /api/gaia/memory/retract {
+        proxy_pass http://${GAIA_API_HOST}:8891/memory/retract;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Authorization "Bearer ${GAIA_API_TOKEN_WEB}";
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_read_timeout 3600s;
+    }
+
+    # --- path families -------------------------------------------------------
+
+    # list, one conversation, /events (SSE), /:id/export/{json,markdown}
+    location ^~ /api/gaia/conversations {
+        proxy_pass http://${GAIA_API_HOST}:8891/conversations;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Authorization "Bearer ${GAIA_API_TOKEN_WEB}";
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_read_timeout 3600s;
+    }
+
+    # GET/POST /files, GET/DELETE /files/:id
+    location ^~ /api/gaia/library/files {
+        proxy_pass http://${GAIA_API_HOST}:8891/library/files;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Authorization "Bearer ${GAIA_API_TOKEN_WEB}";
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_read_timeout 3600s;
+    }
+
+    # The GaiaChat review surface: the hypotheses list plus confirm/reject/
+    # reopen/test. `confirm` is the only path to `confirmed`, so this client
+    # genuinely needs it — which is exactly why the whole /cognition/ prefix
+    # must not be proxied.
+    location ^~ /api/gaia/cognition/hypotheses {
+        proxy_pass http://${GAIA_API_HOST}:8891/cognition/hypotheses;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Authorization "Bearer ${GAIA_API_TOKEN_WEB}";
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_read_timeout 3600s;
+    }
+
+    # episodes list, /:id/evidence, /episodes/stream (SSE)
+    location ^~ /api/gaia/kairos/ {
+        proxy_pass http://${GAIA_API_HOST}:8891/kairos/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Authorization "Bearer ${GAIA_API_TOKEN_WEB}";
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_read_timeout 3600s;
+    }
+
+    # jobs list, /:id/ack, /:id/approval
+    location ^~ /api/gaia/research/jobs {
+        proxy_pass http://${GAIA_API_HOST}:8891/research/jobs;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Authorization "Bearer ${GAIA_API_TOKEN_WEB}";
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_read_timeout 3600s;
+    }
+
+    # --- default deny --------------------------------------------------------
+    # Anything else under /api/gaia/ is not part of this client's contract.
+    # 404 rather than 403: an unauthenticated caller then learns only that the
+    # path is not served, not that a service exists behind it.
+    location ^~ /api/gaia/ {
+        return 404;
     }
 
     location / {
